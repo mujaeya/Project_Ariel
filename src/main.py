@@ -1,31 +1,70 @@
 # src/main.py
+import sys
+import os
+from PySide6.QtWidgets import QApplication, QMessageBox
 
-import time
-from audio_capturer import AudioCapturer
+# --- 모듈 경로 문제 해결 ---
+if getattr(sys, 'frozen', False):
+    application_path = os.path.dirname(sys.executable)
+else:
+    application_path = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(application_path)
+# ---------------------------
 
-# 오디오 데이터가 들어올 때마다 호출될 간단한 콜백 함수
-def audio_chunk_callback(chunk):
-    """오디오 청크를 받을 때마다 호출되어, 받았다는 사실을 출력합니다."""
-    # 실제로는 이 청크 데이터를 STT API로 보내는 로직이 들어갑니다.
-    print(f"오디오 청크 수신: {len(chunk)} 바이트")
+from config_manager import ConfigManager
+from gui.tray_icon import TrayIcon
+from gui.setup_window import SetupWindow
 
-if __name__ == "__main__":
-    # 1. 오디오 캡처 객체 생성
-    capturer = AudioCapturer()
+def main():
+    app = QApplication(sys.argv)
+    app.setQuitOnLastWindowClosed(False)
 
-    try:
-        # 2. 콜백 함수를 등록하고 스트림 시작
-        #    이 함수는 백그라운드 스레드에서 오디오를 계속 캡처합니다.
-        capturer.start_stream(audio_chunk_callback)
+    config_manager = ConfigManager()
 
-        # 3. 메인 프로그램은 다른 작업을 할 수 있습니다.
-        #    여기서는 10초 동안 프로그램을 실행 상태로 유지합니다.
-        print("메인 스레드: 10초 동안 대기합니다. 유튜브나 음악을 재생해 보세요.")
-        time.sleep(10)
-        print("메인 스레드: 대기 시간 종료.")
+    google_key = config_manager.get("google_credentials_path")
+    deepl_key = config_manager.get("deepl_api_key")
 
-    except Exception as e:
-        print(f"에러 발생: {e}")
-    finally:
-        # 4. 스트림을 안전하게 종료합니다.
-        capturer.stop_stream()
+    if not google_key or not deepl_key:
+        QMessageBox.information(None, "Ariel에 오신 것을 환영합니다!",
+                                "실시간 번역기 'Ariel'을 사용하기 전에, \n"
+                                "필수적인 API 키와 오디오 장치 설정을 먼저 완료해야 합니다.")
+        
+        setup_win = SetupWindow(config_manager)
+        
+        def on_setup_closed(is_saved):
+            if is_saved and config_manager.get("google_credentials_path") and config_manager.get("deepl_api_key"):
+                start_main_application(app, config_manager)
+            else:
+                QMessageBox.critical(None, "설정 미완료", "필수 설정이 완료되지 않아 프로그램을 종료합니다.")
+                app.quit()
+
+        setup_win.closed.connect(on_setup_closed)
+        setup_win.show()
+    else:
+        start_main_application(app, config_manager)
+
+    sys.exit(app.exec())
+
+
+def start_main_application(app, config_manager):
+    """트레이 아이콘을 생성하고 메인 앱을 시작하는 함수."""
+    if getattr(sys, 'frozen', False):
+        application_path = os.path.dirname(sys.executable)
+    else:
+        application_path = os.path.dirname(os.path.abspath(__file__))
+
+    icon_path = os.path.join(application_path, '..', 'assets', 'ariel_icon.png')
+    
+    if not hasattr(app, 'tray_icon'):
+        app.tray_icon = TrayIcon(config_manager, icon_path)
+    
+    if not app.tray_icon.isSystemTrayAvailable():
+        QMessageBox.critical(None, "오류", "시스템 트레이를 사용할 수 없습니다.")
+        app.quit()
+        return
+
+    app.tray_icon.show()
+    print("Ariel이 시스템 트레이에서 실행 중입니다.")
+
+if __name__ == '__main__':
+    main()

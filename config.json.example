@@ -1,0 +1,15 @@
+{
+  "api_keys": {
+    "google_cloud_json_path": "YOUR_GOOGLE_CLOUD_KEY.json",
+    "deepl_api_key": "YOUR_DEEPL_API_KEY"
+  },
+  "audio_settings": {
+    "input_device_keyword": "CABLE Output",
+    "output_device_keyword": "Speakers (Realtek)", // <--- 사용자가 원하는 출력 장치 이름의 '키워드'를 직접 적도록 함
+    "language": "en-US",
+    "vad_aggressiveness": 3 // VAD 민감도 (0~3, 높을수록 목소리만 감지)
+  },
+  "translation_settings": {
+    "target_language": "KO"
+  }
+}
