@@ -1,8 +1,10 @@
+# src/gui/tray_icon.py (최종 아키텍처 완성본)
 import sys
 from PySide6.QtWidgets import QSystemTrayIcon, QMenu, QMessageBox, QApplication
 from PySide6.QtGui import QIcon, QAction
 from PySide6.QtCore import Slot, QObject, QThread
 
+# hotkey_manager가 없다면 이전 단계의 코드를 참고하여 생성해야 합니다.
 try:
     from hotkey_manager import HotkeyManager
 except ImportError:
@@ -10,6 +12,8 @@ except ImportError:
     HotkeyManager = None
 
 from config_manager import ConfigManager
+from gui.setup_window import SetupWindow
+from gui.overlay_window import OverlayWindow
 from worker import Worker
 
 class TrayIcon(QObject):
@@ -22,20 +26,24 @@ class TrayIcon(QObject):
         self.app = app
         self.config_manager = config_manager
 
+        # QSystemTrayIcon은 이 컨트롤러 클래스의 멤버 변수로 관리합니다.
         self.tray_icon = QSystemTrayIcon(self)
         icon = QIcon(icon_path)
         self.tray_icon.setIcon(icon)
         self.tray_icon.setToolTip("Ariel by Seeth")
 
-        self.worker = None 
+        # 멤버 변수 초기화
+        self.worker = None # Worker는 이제 스레드가 아니므로 thread 변수 불필요
         self.overlay = None
         self.setup_window = None
         self.hotkey_manager = None
         self.hotkey_thread = None
 
+        # 메뉴 생성 및 연결
         self.create_menu()
         self.tray_icon.show()
 
+        # 단축키 관리자 설정
         if HotkeyManager:
             self.setup_hotkey_manager()
         
@@ -86,8 +94,7 @@ class TrayIcon(QObject):
 
     @Slot()
     def start_translation(self):
-        from gui.overlay_window import OverlayWindow
-
+        # Worker가 이미 생성되어 동작 중인지 확인
         if self.worker and self.worker._is_running:
             return
 
@@ -95,21 +102,20 @@ class TrayIcon(QObject):
         self.start_action.setEnabled(False)
         self.stop_action.setEnabled(True)
 
+        # 1. 오버레이 창 준비
         if not self.overlay:
             self.overlay = OverlayWindow(self.config_manager)
-
-        saved_geometry = self.config_manager.get("overlay_geometry")
-        if saved_geometry and len(saved_geometry) == 4:
-            self.overlay.setGeometry(*saved_geometry)
-
         self.overlay.show()
 
+        # 2. Worker를 메인 스레드에서 생성 (스레드로 옮기지 않음)
         self.worker = Worker(self.config_manager)
 
+        # 3. 시그널-슬롯 연결
         self.worker.translation_ready.connect(self.overlay.add_translation)
         self.worker.status_update.connect(self.overlay.update_status)
         self.worker.error_occurred.connect(self.on_worker_error)
         
+        # 4. Worker의 처리 시작
         self.worker.start_processing()
         self.tray_icon.showMessage("번역 시작", "Ariel 실시간 번역을 시작합니다.", self.tray_icon.icon(), 2000)
 
@@ -119,10 +125,12 @@ class TrayIcon(QObject):
         
         if self.worker:
             self.worker.stop_processing()
+            # Worker 객체는 다음 시작 시 새로 생성되므로, 여기서 참조를 제거
             self.worker = None
         
         if self.overlay:
             self.overlay.hide()
+            # 오버레이 창도 다음에 다시 생성되도록 참조 제거
             self.overlay = None
             
         self.start_action.setEnabled(True)
@@ -132,12 +140,11 @@ class TrayIcon(QObject):
     @Slot(str)
     def on_worker_error(self, message):
         self.tray_icon.showMessage("오류 발생", message, self.tray_icon.icon(), 3000)
+        # 오류 발생 시에도 확실하게 중지 로직 실행
         self.stop_translation()
 
     @Slot()
     def open_setup_window(self):
-        from gui.setup_window import SetupWindow
-
         if self.setup_window and self.setup_window.isVisible():
             self.setup_window.close()
             return
@@ -149,6 +156,7 @@ class TrayIcon(QObject):
 
     @Slot(bool, str)
     def on_setup_window_closed(self, is_saved, context):
+        # 창이 닫힐 때 참조를 제거하여 토글 기능이 가능하도록 함
         self.setup_window = None
         
         if is_saved:

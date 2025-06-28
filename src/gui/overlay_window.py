@@ -1,3 +1,4 @@
+# src/gui/overlay_window.py (최종 완성본)
 import sys
 from PySide6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QGraphicsOpacityEffect, QSizePolicy
 from PySide6.QtCore import Qt, Slot, QPoint
@@ -12,6 +13,7 @@ class TranslationItem(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.config_manager = config_manager
         
+        # 크기 정책을 '수평 확장, 수직 선호'로 설정하여 잘림 문제 해결
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
         self.layout = QVBoxLayout(self)
@@ -24,6 +26,7 @@ class TranslationItem(QWidget):
 
         for label in [self.translated_label, self.original_label]:
             label.setWordWrap(True)
+            # 크기 정책을 Preferred로 통일하여 내용에 맞게 크기가 조절되도록 함
             label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
         self.translated_label.setTextFormat(Qt.TextFormat.RichText)
@@ -135,13 +138,7 @@ class OverlayWindow(QWidget):
         event.accept()
 
     def mouseReleaseEvent(self, event):
-        if self.dragging or self.resizing:
-            geom = self.geometry()
-            geometry_list = [geom.x(), geom.y(), geom.width(), geom.height()]
-            self.config_manager.set("overlay_geometry", geometry_list)
-
-        self.dragging = False
-        self.resizing = False
+        self.dragging = False; self.resizing = False
         self.unsetCursor()
         event.accept()
 
@@ -160,11 +157,14 @@ class OverlayWindow(QWidget):
     def add_translation(self, original, translated):
         if not translated: return
         
+        # 새 번역 아이템 생성
         item = TranslationItem(original, translated, self.config_manager)
         
+        # 레이아웃의 맨 위에 아이템 추가
         self.main_layout.insertWidget(0, item)
         self.translation_items.insert(0, item)
         
+        # 최대 아이템 개수 유지
         if len(self.translation_items) > self.MAX_ITEMS:
             old_item = self.translation_items.pop()
             self.main_layout.removeWidget(old_item); old_item.deleteLater()
@@ -179,6 +179,7 @@ class OverlayWindow(QWidget):
 
     @Slot(str)
     def update_status(self, message: str):
+        # 레이아웃에서 상태 표시 제거/추가를 관리
         if self.status_layout.parent():
             self.main_layout.removeItem(self.status_layout)
         
@@ -186,4 +187,5 @@ class OverlayWindow(QWidget):
         self.status_label.setVisible(bool(message))
 
         if message:
+            # 상태 메시지가 있을 때만 레이아웃에 추가
             self.main_layout.addLayout(self.status_layout)

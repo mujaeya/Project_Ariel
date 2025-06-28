@@ -1,3 +1,4 @@
+# src/hotkey_manager.py (신규 파일)
 import keyboard
 from PySide6.QtCore import QObject, Signal, Slot
 
@@ -53,6 +54,7 @@ class HotkeyManager(QObject):
 
             print(f"[HotkeyManager] 단축키 등록 완료: {[key for key, _ in self.registered_hotkeys]}")
         except Exception as e:
+            # 이 오류는 GUI 스레드로 전달할 방법이 마땅치 않으므로 로그만 남깁니다.
             print(f"[HotkeyManager] 단축키 등록 실패: {e}")
 
     def stop_listening(self):
