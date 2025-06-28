@@ -1,25 +1,30 @@
-# run_ariel.py
+# run_ariel.py (완성 코드)
 
 import sys
 import os
 from multiprocessing import freeze_support
 
-# 이 파일은 애플리케이션의 유일한 진입점입니다.
-# 역할: QApplication 객체를 가장 먼저 생성하고, main 로직을 호출합니다.
-
 if __name__ == '__main__':
-    # Windows에서 실행 파일(.exe)로 만들 때 필요합니다.
+    # 멀티프로세싱 지원 (PyInstaller 등으로 패키징 시 필요)
     freeze_support()
 
-    # 'src' 폴더를 Python 경로에 추가하여 하위 모듈을 찾을 수 있게 합니다.
+    # 'src' 폴더를 Python 경로에 추가하여 모듈을 찾을 수 있도록 함
     application_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src')
     sys.path.insert(0, application_path)
 
-    # 1. 다른 어떤 코드보다도 먼저 QApplication 객체를 생성합니다.
-    from PySide6.QtWidgets import QApplication
+    # --- GUI 라이브러리 import ---
+    from PySide6.QtWidgets import QApplication, QMainWindow
+
+    # 1. [핵심] 다른 어떤 GUI 코드보다도 먼저 QApplication 객체를 생성합니다.
     app = QApplication(sys.argv)
 
-    # 2. QApplication이 생성된 후에야 메인 애플리케이션 로직을 import하고 실행합니다.
-    #    이렇게 하면 main.py 내부의 모든 import는 app 생성 이후에 처리됩니다.
+    # 2. [핵심] qfluentwidgets 라이브러리가 안정적으로 동작하도록,
+    #    눈에 보이지 않는 '더미' 메인 윈도우를 먼저 생성합니다.
+    #    이 윈도우는 메모리에만 존재하며, 실제 화면에 표시되지는 않습니다.
+    #    이것이 SetupWindow가 오류 없이 생성될 수 있게 하는 열쇠입니다.
+    dummy_main_window = QMainWindow()
+
+    # 3. 모든 환경이 준비되었으므로, 실제 애플리케이션 로직을 실행합니다.
+    #    app 객체를 전달하여 main.py에서 이벤트 루프를 제어하도록 합니다.
     import main
     main.run_main_app(app)
