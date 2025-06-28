@@ -1,37 +1,52 @@
-# src/gui/overlay_window.py (최종 완성본)
 import sys
-from PySide6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QGraphicsOpacityEffect, QSizePolicy
+from PySide6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QGraphicsOpacityEffect, QSizePolicy, QPushButton
 from PySide6.QtCore import Qt, Slot, QPoint
-from PySide6.QtGui import QFont, QCursor
+from PySide6.QtGui import QFont, QCursor, QColor
 
 from config_manager import ConfigManager
 
 class TranslationItem(QWidget):
-    """번역 결과 한 줄을 표시하는 커스텀 위젯"""
-    def __init__(self, original_text, translated_text, config_manager):
+    """번역 결과 한 줄을 표시하는 커스텀 위젯 (실시간 미리보기 및 클립보드 복사 개선)"""
+    def __init__(self, original_text, translated_text, config_manager, temp_config=None):
         super().__init__()
-        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        # 미리보기용 임시 config가 있으면 그것을 사용, 없으면 메인 config 사용
         self.config_manager = config_manager
-        
-        # 크기 정책을 '수평 확장, 수직 선호'로 설정하여 잘림 문제 해결
+        self.current_config = temp_config if temp_config is not None else self.config_manager.config
+
+        self.original_text = original_text
+        self.translated_text = translated_text
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setObjectName("translationItem")
+
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
         self.layout = QVBoxLayout(self)
-        self.layout.setContentsMargins(0, 2, 0, 2)
+        self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.setSpacing(0)
-        self.layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        
+        self.top_layout = QHBoxLayout()
+        self.top_layout.setContentsMargins(8, 8, 8, 2)
+        self.top_layout.setSpacing(8)
 
         self.translated_label = QLabel(translated_text)
-        self.original_label = QLabel(original_text)
-
-        for label in [self.translated_label, self.original_label]:
-            label.setWordWrap(True)
-            # 크기 정책을 Preferred로 통일하여 내용에 맞게 크기가 조절되도록 함
-            label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-
+        self.translated_label.setWordWrap(True)
+        self.translated_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         self.translated_label.setTextFormat(Qt.TextFormat.RichText)
+
+        self.copy_button = QPushButton()
+        self.copy_button.setFixedSize(18, 18)
+        self.copy_button.setToolTip("번역 결과 복사")
+        self.copy_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.copy_button.clicked.connect(self.copy_to_clipboard)
+
+        self.top_layout.addWidget(self.translated_label, 1)
+        self.top_layout.addWidget(self.copy_button)
+
+        self.original_label = QLabel(original_text)
+        self.original_label.setWordWrap(True)
+        self.original_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         
-        self.layout.addWidget(self.translated_label)
+        self.layout.addLayout(self.top_layout)
         self.layout.addWidget(self.original_label)
         
         self.opacity_effect = QGraphicsOpacityEffect(self)
@@ -39,31 +54,87 @@ class TranslationItem(QWidget):
         
         self.update_styles()
 
+    def copy_to_clipboard(self):
+        """pyperclip 라이브러리를 사용하여 안정적으로 클립보드에 복사합니다."""
+        try:
+            import pyperclip
+            pyperclip.copy(self.translated_text)
+            print(f"클립보드에 복사됨: {self.translated_text}")
+        except ImportError:
+            print("오류: pyperclip 라이브러리가 설치되지 않았습니다. 'pip install pyperclip'을 실행해주세요.")
+        except Exception as e:
+            print(f"클립보드 복사 중 오류 발생: {e}")
+
+    def _adjust_color(self, color, amount):
+        """QColor를 사용하여 색상을 안전하게 조절하고, RGBA 문자열로 반환합니다."""
+        q_color = QColor(color)
+        if not q_color.isValid(): return color
+        
+        h, s, l, a = q_color.getHslF()
+        l = max(0.0, min(1.0, l + amount / 255.0))
+        
+        new_color = QColor.fromHslF(h, s, l, a)
+        return f"rgba({new_color.red()}, {new_color.green()}, {new_color.blue()}, {new_color.alpha()})"
+
     def update_styles(self):
-        font_family = self.config_manager.get("overlay_font_family", "Malgun Gothic")
-        font_size = self.config_manager.get("overlay_font_size", 18)
-        font_color = self.config_manager.get("overlay_font_color", "#FFFFFF")
-        bg_color = self.config_manager.get("overlay_bg_color", "rgba(0, 0, 0, 160)")
-        show_original = self.config_manager.get("show_original_text", True)
-        original_font_size_offset = self.config_manager.get("original_text_font_size_offset", -4)
-        original_font_color = self.config_manager.get("original_text_font_color", "#BBBBBB")
-        
-        source_langs = self.config_manager.get("source_languages", ["en-US"])
-        source_lang_code = source_langs[0].split('-')[0] if source_langs else "en"
-        rtl_languages = ['ar', 'he', 'fa']
-        alignment = Qt.AlignmentFlag.AlignRight if source_lang_code in rtl_languages else Qt.AlignmentFlag.AlignLeft
-        
-        t_font = QFont(font_family, font_size); t_font.setBold(True)
-        self.translated_label.setFont(t_font)
-        self.translated_label.setStyleSheet(f"color: {font_color}; background-color: {bg_color}; border-radius: 5px; padding: 8px;")
-        self.translated_label.setAlignment(alignment | Qt.AlignmentFlag.AlignVCenter)
-        
-        o_font = QFont(font_family, font_size + original_font_size_offset)
-        self.original_label.setFont(o_font)
-        self.original_label.setStyleSheet(f"color: {original_font_color}; background-color: transparent; padding: 2px 8px 5px;")
-        self.original_label.setAlignment(alignment | Qt.AlignmentFlag.AlignVCenter)
+        """스타일시트를 사용하여 위젯의 모든 외형을 설정합니다."""
+        # current_config를 사용하여 스타일을 동적으로 적용
+        font_family = self.current_config.get("overlay_font_family", "Malgun Gothic")
+        font_size = self.current_config.get("overlay_font_size", 18)
+        font_color = self.current_config.get("overlay_font_color", "#FFFFFF")
+        bg_color = self.current_config.get("overlay_bg_color", "rgba(0, 0, 0, 160)")
+        show_original = self.current_config.get("show_original_text", True)
+        original_font_size_offset = self.current_config.get("original_text_font_size_offset", -4)
+        original_font_color = self.current_config.get("original_text_font_color", "#BBBBBB")
+
+        button_bg_color = self._adjust_color(bg_color, 25)
+        button_hover_color = self._adjust_color(bg_color, 50)
+        button_pressed_color = self._adjust_color(bg_color, 15)
+
+        self.setStyleSheet(f"""
+            #translationItem {{
+                background-color: {bg_color};
+                border-radius: 5px;
+            }}
+            QLabel {{
+                background-color: transparent;
+            }}
+            #translated_label {{
+                color: {font_color};
+                font-family: "{font_family}";
+                font-size: {font_size}px;
+                font-weight: bold;
+            }}
+            #original_label {{
+                color: {original_font_color};
+                font-family: "{font_family}";
+                font-size: {font_size + original_font_size_offset}px;
+                padding: 0px 8px 5px 8px;
+            }}
+            QPushButton {{
+                background-color: {button_bg_color};
+                border: none;
+                border-radius: 3px;
+                /* 아이콘을 위한 임시 스타일 (나중에 이미지로 교체 가능) */
+                color: {font_color};
+                font-weight: bold;
+                font-size: 10px;
+                qproperty-text: "📋";
+            }}
+            QPushButton:hover {{
+                background-color: {button_hover_color};
+            }}
+            QPushButton:pressed {{
+                background-color: {button_pressed_color};
+            }}
+        """)
+
+        self.translated_label.setObjectName("translated_label")
+        self.original_label.setObjectName("original_label")
+
         self.original_label.setVisible(show_original)
         self.updateGeometry()
+
 
 class OverlayWindow(QWidget):
     MAX_ITEMS = 3
@@ -81,16 +152,15 @@ class OverlayWindow(QWidget):
         self.main_layout.setSpacing(4)
         
         self.status_layout = QHBoxLayout()
+        self.status_layout.setContentsMargins(0, 0, 0, 0)
         self.status_layout.addStretch(1)
         self.status_label = QLabel()
         self.status_layout.addWidget(self.status_label)
         
         self.translation_items = []
-        
+        self.main_layout.addStretch(1)
         self.update_styles()
-        self.resize(800, 100)
-        self._center_on_screen()
-
+        
         self.dragging = False
         self.resizing = False
         self.drag_start_position = QPoint()
@@ -98,10 +168,10 @@ class OverlayWindow(QWidget):
 
     def get_edge(self, pos: QPoint):
         edge = 0
-        if pos.x() < self.RESIZE_MARGIN: edge |= Qt.LeftEdge.value
-        if pos.x() > self.width() - self.RESIZE_MARGIN: edge |= Qt.RightEdge.value
-        if pos.y() < self.RESIZE_MARGIN: edge |= Qt.TopEdge.value
-        if pos.y() > self.height() - self.RESIZE_MARGIN: edge |= Qt.BottomEdge.value
+        if pos.x() < self.RESIZE_MARGIN: edge |= Qt.Edge.LeftEdge
+        if pos.x() > self.width() - self.RESIZE_MARGIN: edge |= Qt.Edge.RightEdge
+        if pos.y() < self.RESIZE_MARGIN: edge |= Qt.Edge.TopEdge
+        if pos.y() > self.height() - self.RESIZE_MARGIN: edge |= Qt.Edge.BottomEdge
         return edge
 
     def mousePressEvent(self, event):
@@ -117,33 +187,42 @@ class OverlayWindow(QWidget):
             event.accept()
 
     def mouseMoveEvent(self, event):
+        pos = event.position().toPoint()
         if self.resizing:
             delta = event.globalPosition().toPoint() - self.resize_start_pos
             geom = self.geometry()
-            if self.resize_edge & Qt.LeftEdge.value: geom.setLeft(self.resize_start_geometry.left() + delta.x())
-            if self.resize_edge & Qt.RightEdge.value: geom.setRight(self.resize_start_geometry.right() + delta.x())
-            if self.resize_edge & Qt.TopEdge.value: geom.setTop(self.resize_start_geometry.top() + delta.y())
-            if self.resize_edge & Qt.BottomEdge.value: geom.setBottom(self.resize_start_geometry.bottom() + delta.y())
+            if self.resize_edge & Qt.Edge.LeftEdge: geom.setLeft(self.resize_start_geometry.left() + delta.x())
+            if self.resize_edge & Qt.Edge.RightEdge: geom.setRight(self.resize_start_geometry.right() + delta.x())
+            if self.resize_edge & Qt.Edge.TopEdge: geom.setTop(self.resize_start_geometry.top() + delta.y())
+            if self.resize_edge & Qt.Edge.BottomEdge: geom.setBottom(self.resize_start_geometry.bottom() + delta.y())
             if geom.width() < self.minimumWidth() or geom.height() < self.minimumHeight(): return
             self.setGeometry(geom)
         elif self.dragging:
             self.move(event.globalPosition().toPoint() - self.drag_start_position)
         else:
-            edge = self.get_edge(event.position().toPoint())
-            if (edge == (Qt.LeftEdge.value | Qt.TopEdge.value)) or (edge == (Qt.RightEdge.value | Qt.BottomEdge.value)): self.setCursor(Qt.CursorShape.SizeFDiagCursor)
-            elif (edge == (Qt.RightEdge.value | Qt.TopEdge.value)) or (edge == (Qt.LeftEdge.value | Qt.BottomEdge.value)): self.setCursor(Qt.CursorShape.SizeBDiagCursor)
-            elif (edge == Qt.LeftEdge.value) or (edge == Qt.RightEdge.value): self.setCursor(Qt.CursorShape.SizeHorCursor)
-            elif (edge == Qt.TopEdge.value) or (edge == Qt.BottomEdge.value): self.setCursor(Qt.CursorShape.SizeVerCursor)
+            edge = self.get_edge(pos)
+            if (edge == (Qt.Edge.LeftEdge | Qt.Edge.TopEdge)) or (edge == (Qt.Edge.RightEdge | Qt.Edge.BottomEdge)): self.setCursor(Qt.CursorShape.SizeFDiagCursor)
+            elif (edge == (Qt.Edge.RightEdge | Qt.Edge.TopEdge)) or (edge == (Qt.Edge.LeftEdge | Qt.Edge.BottomEdge)): self.setCursor(Qt.CursorShape.SizeBDiagCursor)
+            elif (edge == Qt.Edge.LeftEdge) or (edge == Qt.Edge.RightEdge): self.setCursor(Qt.CursorShape.SizeHorCursor)
+            elif (edge == Qt.Edge.TopEdge) or (edge == Qt.Edge.BottomEdge): self.setCursor(Qt.CursorShape.SizeVerCursor)
             else: self.unsetCursor()
         event.accept()
 
     def mouseReleaseEvent(self, event):
-        self.dragging = False; self.resizing = False
+        if self.resizing or self.dragging:
+            self.config_manager.set("overlay_pos_x", self.pos().x())
+            self.config_manager.set("overlay_pos_y", self.pos().y())
+            self.config_manager.set("overlay_width", self.width())
+            self.config_manager.set("overlay_height", self.height())
+            
+        self.dragging = False
+        self.resizing = False
         self.unsetCursor()
         event.accept()
 
     def update_styles(self):
-        font = QFont(self.config_manager.get("overlay_font_family", "Malgun Gothic"), self.config_manager.get("status_font_size", 10)); font.setItalic(True)
+        font = QFont(self.config_manager.get("overlay_font_family", "Malgun Gothic"), 10)
+        font.setItalic(True)
         color = self.config_manager.get("status_font_color", "#CCCCCC")
         self.status_label.setFont(font)
         self.status_label.setStyleSheet(f"color: {color}; background-color: rgba(0,0,0,120); padding: 3px; border-radius: 3px;")
@@ -157,14 +236,12 @@ class OverlayWindow(QWidget):
     def add_translation(self, original, translated):
         if not translated: return
         
-        # 새 번역 아이템 생성
+        # 실제 오버레이 창에서는 temp_config를 사용하지 않음
         item = TranslationItem(original, translated, self.config_manager)
-        
-        # 레이아웃의 맨 위에 아이템 추가
-        self.main_layout.insertWidget(0, item)
+        insert_index = 0
+        self.main_layout.insertWidget(insert_index, item)
         self.translation_items.insert(0, item)
         
-        # 최대 아이템 개수 유지
         if len(self.translation_items) > self.MAX_ITEMS:
             old_item = self.translation_items.pop()
             self.main_layout.removeWidget(old_item); old_item.deleteLater()
@@ -179,7 +256,6 @@ class OverlayWindow(QWidget):
 
     @Slot(str)
     def update_status(self, message: str):
-        # 레이아웃에서 상태 표시 제거/추가를 관리
         if self.status_layout.parent():
             self.main_layout.removeItem(self.status_layout)
         
@@ -187,5 +263,5 @@ class OverlayWindow(QWidget):
         self.status_label.setVisible(bool(message))
 
         if message:
-            # 상태 메시지가 있을 때만 레이아웃에 추가
-            self.main_layout.addLayout(self.status_layout)
+            insert_index = self.main_layout.count() - 1
+            self.main_layout.insertLayout(insert_index, self.status_layout)

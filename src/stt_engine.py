@@ -1,17 +1,19 @@
-# src/stt_engine.py (최종 완성본)
+# src/stt_engine.py (이 코드로 전체를 교체해주세요)
 from PySide6.QtCore import QObject, Signal, Slot
 from google.cloud import speech
 import queue
 
-class STTEngine(QObject): # QThread가 아닌 QObject로 변경
+# 'video' 모델을 지원하는 언어 목록 (BCP-47 코드 기준, 소문자로 관리하여 비교 용이)
+VIDEO_MODEL_SUPPORTED_LANGUAGES = [
+    'en-us', 'en-gb', 'fr-fr', 'es-es', 'de-de', 'it-it', 'ja-jp', 'pt-br', 'ru-ru', 'hi-in'
+]
+
+class STTEngine(QObject):
     """
-    독립된 스레드에서 실행되며, 공유 큐에서 오디오 데이터를 가져와
-    실시간으로 Google STT API로 전송하고, 그 결과를 다시 시그널로
-    상위 매니저(Worker)에게 전달하는 역할만 전담합니다.
+    오디오 데이터를 받아 STT API로 전송하고 결과를 반환합니다.
+    언어 코드 비교 로직을 강화하여 안정성을 더욱 높였습니다.
     """
-    # (번역할 텍스트, 최종 문장 여부) 시그널
     transcript_updated = Signal(str, bool)
-    # (오류 메시지) 시그널
     error_occurred = Signal(str)
 
     def __init__(self, config_manager, audio_queue: queue.Queue, parent=None):
@@ -25,27 +27,34 @@ class STTEngine(QObject): # QThread가 아닌 QObject로 변경
         """STT 스트리밍을 시작하는 메인 로직"""
         self._is_running = True
         try:
-            # 1. Google Cloud 클라이언트 및 설정 초기화
+            language_code = self.config_manager.get("source_languages", ["en-US"])[0]
+            language_code_clean = language_code.strip().lower() # 비교를 위해 소문자/공백제거 버전 생성
+
+            # 'video' 모델 자동 적용 로직 (강화된 비교 방식)
+            model_to_use = None
+            if language_code_clean in VIDEO_MODEL_SUPPORTED_LANGUAGES:
+                model_to_use = 'video'
+                print(f"[STTEngine] 지원 언어 '{language_code}' 감지, 'video' 모델을 자동으로 사용합니다.")
+            else:
+                print(f"[STTEngine] 언어 '{language_code}'는 'video' 모델을 지원하지 않아 기본 모델을 사용합니다.")
+
             client = speech.SpeechClient.from_service_account_json(
                 self.config_manager.get("google_credentials_path")
             )
             config = speech.RecognitionConfig(
                 encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
                 sample_rate_hertz=16000,
-                language_code=self.config_manager.get("source_language", "en-US"),
+                language_code=language_code, # API에는 원래의 언어 코드 전달
                 enable_automatic_punctuation=True,
-                # 'video' 모델 사용 여부를 설정에서 가져옴
-                model='video' if self.config_manager.get("use_video_model", False) else None,
+                model=model_to_use
             )
             streaming_config = speech.StreamingRecognitionConfig(
                 config=config,
-                interim_results=True  # 중간 결과도 받도록 설정
+                interim_results=True
             )
 
-            # 2. 오디오 큐에서 데이터를 가져와 API로 보내는 생성기(generator) 준비
             audio_generator = self._audio_stream_generator()
 
-            # 3. API에 스트리밍 요청 시작
             print("[STTEngine] Google STT 스트리밍을 시작합니다.")
             requests = (
                 speech.StreamingRecognizeRequest(audio_content=content)
@@ -53,7 +62,6 @@ class STTEngine(QObject): # QThread가 아닌 QObject로 변경
             )
             responses = client.streaming_recognize(streaming_config, requests)
 
-            # 4. API로부터 오는 응답을 실시간으로 처리
             self._listen_for_responses(responses)
 
         except Exception as e:
@@ -67,14 +75,11 @@ class STTEngine(QObject): # QThread가 아닌 QObject로 변경
         """공유 큐에서 오디오 데이터를 꺼내와 STT API로 보내주는 생성기"""
         while self._is_running:
             try:
-                # 큐에서 데이터를 기다림 (오디오 데이터가 올 때까지 잠시 멈춤)
-                chunk = self.audio_queue.get()
+                chunk = self.audio_queue.get(timeout=0.1)
                 if chunk is None:
-                    # 큐에서 None을 받으면 스트림 종료 신호로 간주
                     return
                 yield chunk
             except queue.Empty:
-                # 혹시 모를 상황 대비
                 continue
 
     def _listen_for_responses(self, responses):
@@ -91,14 +96,11 @@ class STTEngine(QObject): # QThread가 아닌 QObject로 변경
 
             transcript = result.alternatives[0].transcript
 
-            # 최종 문장(is_final)일 때만 매니저에게 보고
             if result.is_final:
                 print(f"[STTEngine] 최종 문장 감지: {transcript}")
                 self.transcript_updated.emit(transcript, True)
             else:
-                # 중간 결과는 로그에만 표시하거나, 나중에 UI에 표시할 수 있음
-                # print(f"중간 결과: {transcript}", end='\r')
-                self.transcript_updated.emit(transcript, False)
+                pass
     
     @Slot()
     def stop_transcription(self):
