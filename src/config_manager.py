@@ -1,4 +1,3 @@
-# src/config_manager.py (번역 톤 설정 추가 최종본)
 import json
 import os
 import sys
@@ -21,20 +20,37 @@ class ConfigManager:
             "deepl_api_key": "",
             "source_languages": ["en-US"],
             "target_languages": ["KO"],
-            "translation_formality": "default", 
+            "translation_formality": "default",
             "sentence_commit_delay_ms": 700,
             "use_video_model": False,
             "buffer_seconds": 7,
             "hotkey_start_translate": "ctrl+f9",
             "hotkey_stop_translate": "ctrl+f10",
             "hotkey_toggle_setup_window": "ctrl+f12",
+            
+            "theme": "dark",
+            "themes": {
+                "dark": {
+                    "overlay_font_color": "#FFFFFF",
+                    "overlay_bg_color": "rgba(0, 0, 0, 160)",
+                    "original_text_font_color": "#BBBBBB"
+                },
+                "light": {
+                    "overlay_font_color": "#000000",
+                    "overlay_bg_color": "rgba(255, 255, 255, 180)",
+                    "original_text_font_color": "#555555"
+                }
+            },
+            # --------------------------
+
             "overlay_font_family": "Malgun Gothic",
             "overlay_font_size": 18,
-            "overlay_font_color": "#FFFFFF",
+            "overlay_font_color": "#FFFFFF", 
             "overlay_bg_color": "rgba(0, 0, 0, 160)",
             "show_original_text": True,
             "original_text_font_size_offset": -4,
-            "original_text_font_color": "#BBBBBB"
+            "original_text_font_color": "#BBBBBB",
+            "overlay_geometry": None
         }
 
     def load_config(self):
@@ -46,7 +62,6 @@ class ConfigManager:
             with open(self.file_path, 'r', encoding='utf-8') as f:
                 loaded_config = json.load(f)
             
-            # --- 이전 버전과의 호환성 처리 ---
             if "source_language" in loaded_config and isinstance(loaded_config["source_language"], str):
                 loaded_config["source_languages"] = [loaded_config["source_language"]]
                 del loaded_config["source_language"]

@@ -1,4 +1,3 @@
-# src/mt_engine.py (formality 지원 최종 완성본)
 import deepl
 from config_manager import ConfigManager
 
@@ -19,6 +18,20 @@ class MTEngine:
         except Exception as e:
             raise ConnectionError(f"DeepL 번역기 초기화 실패: {e}. API 키가 유효한지 확인하세요.")
 
+    @staticmethod
+    def validate_api_key(api_key: str):
+        """
+        주어진 API 키가 유효한지 확인합니다.
+        유효하지 않으면 예외를 발생시킵니다.
+        """
+        if not api_key:
+            raise ValueError("API 키가 비어있습니다.")
+        try:
+            deepl.Translator(api_key).get_usage()
+            return True
+        except Exception as e:
+            raise ConnectionError(f"API 키가 유효하지 않습니다: {e}")
+
     def translate_text_multi(self, text: str, target_langs: list, context: str = None, formality: str = "default") -> dict:
         """
         주어진 텍스트를 여러 목표 언어로 동시에, 설정된 formality에 맞춰 번역합니다.
@@ -31,7 +44,6 @@ class MTEngine:
         try:
             for lang in target_langs:
                 try:
-                    # 전달받은 formality 값을 API 호출에 사용합니다.
                     result = self.translator.translate_text(
                         text,
                         target_lang=lang,
@@ -39,7 +51,6 @@ class MTEngine:
                         formality=formality
                     )
                 except deepl.UnsupportedFormalityException:
-                    # 해당 언어가 formality를 지원하지 않으면, 기본값으로 다시 시도
                     print(f"정보: 언어 '{lang}'는 formality 설정을 지원하지 않아 기본값으로 번역합니다.")
                     result = self.translator.translate_text(
                         text,

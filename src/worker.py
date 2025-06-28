@@ -1,9 +1,6 @@
-# src/worker.py (최종 아키텍처 완성본)
 from PySide6.QtCore import QObject, Signal, Slot, QThread, QTimer
 import queue
 from collections import deque
-
-# 이 파일들은 모두 올바르게 구현되어 있다고 가정합니다.
 from config_manager import ConfigManager
 from audio_capturer import AudioCapturer
 from stt_engine import STTEngine
@@ -23,17 +20,13 @@ class Worker(QObject):
         self.config_manager = config_manager
         self._is_running = False
 
-        # 스마트 문장 조합을 위한 변수들
         self.sentence_buffer = []
-        self.commit_timer = QTimer(self) # 부모를 self(QObject)로 지정
+        self.commit_timer = QTimer(self) 
         self.commit_timer.setSingleShot(True)
         delay = self.config_manager.get("sentence_commit_delay_ms", 700)        
-        self.commit_timer.setInterval(1200) # 1.2초 후 최종 번역 실행
+        self.commit_timer.setInterval(1200) 
         self.commit_timer.timeout.connect(self.commit_translation)
-
-        # 번역 문맥을 위한 변수
         self.context_history = deque(maxlen=3)
-
         self.audio_thread = None
         self.audio_capturer = None
         self.stt_thread = None
@@ -99,7 +92,7 @@ class Worker(QObject):
         """STT 엔진으로부터 텍스트를 받으면 호출됩니다."""
         if is_final and transcript.strip():
             self.sentence_buffer.append(transcript.strip())
-            self.commit_timer.start() # 메인 스레드에 있는 타이머이므로 안전
+            self.commit_timer.start()
             self.status_update.emit("문장 조합 중...")
 
     @Slot()
