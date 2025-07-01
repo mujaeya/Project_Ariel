@@ -1,142 +1,131 @@
+# src/gui/overlay_window.py (동적 레이아웃 적용 버전)
 import sys
-from PySide6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QGraphicsOpacityEffect, QSizePolicy, QPushButton
+from PySide6.QtWidgets import (QApplication, QWidget, QLabel, QVBoxLayout, 
+                             QHBoxLayout, QGraphicsOpacityEffect, QSizePolicy, QPushButton)
 from PySide6.QtCore import Qt, Slot, QPoint
 from PySide6.QtGui import QFont, QCursor, QColor
 
 from config_manager import ConfigManager
 
 class TranslationItem(QWidget):
-    """번역 결과 한 줄을 표시하는 커스텀 위젯 (실시간 미리보기 및 클립보드 복사 개선)"""
-    def __init__(self, original_text, translated_text, config_manager, temp_config=None):
+    """
+    다중 번역(최대 2개)을 지원하는 동적 레이아웃의 번역 결과 위젯.
+    """
+    def __init__(self, original_text, translated_results: dict, config_manager, temp_config=None):
         super().__init__()
-        # 미리보기용 임시 config가 있으면 그것을 사용, 없으면 메인 config 사용
         self.config_manager = config_manager
-        self.current_config = temp_config if temp_config is not None else self.config_manager.config
+        self.current_config = temp_config if temp_config is not None else self.config_manager.get_active_profile()
 
         self.original_text = original_text
-        self.translated_text = translated_text
+        self.translated_results = translated_results
+        
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setObjectName("translationItem")
-
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
-        self.layout = QVBoxLayout(self)
-        self.layout.setContentsMargins(0, 0, 0, 0)
-        self.layout.setSpacing(0)
+        # --- 레이아웃 생성 ---
+        self.main_layout = QVBoxLayout(self)
+        self.main_layout.setContentsMargins(8, 8, 8, 8)
+        self.main_layout.setSpacing(4)
         
-        self.top_layout = QHBoxLayout()
-        self.top_layout.setContentsMargins(8, 8, 8, 2)
-        self.top_layout.setSpacing(8)
-
-        self.translated_label = QLabel(translated_text)
-        self.translated_label.setWordWrap(True)
-        self.translated_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        self.translated_label.setTextFormat(Qt.TextFormat.RichText)
-
-        self.copy_button = QPushButton()
-        self.copy_button.setFixedSize(18, 18)
-        self.copy_button.setToolTip("번역 결과 복사")
-        self.copy_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.copy_button.clicked.connect(self.copy_to_clipboard)
-
-        self.top_layout.addWidget(self.translated_label, 1)
-        self.top_layout.addWidget(self.copy_button)
-
-        self.original_label = QLabel(original_text)
-        self.original_label.setWordWrap(True)
-        self.original_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        # <<<<<<< 핵심 수정: 번역 결과에 따라 동적으로 라벨 생성 >>>>>>>>>
+        target_languages = self.current_config.get("target_languages", [])
         
-        self.layout.addLayout(self.top_layout)
-        self.layout.addWidget(self.original_label)
-        
+        # 1. 첫 번째 번역 라벨 (항상 존재)
+        lang1_code = target_languages[0] if target_languages else ""
+        lang1_text = self.translated_results.get(lang1_code, "")
+        self.translation_label_1 = self.create_translation_label(lang1_code, lang1_text)
+        self.main_layout.addWidget(self.translation_label_1)
+
+        # 2. 두 번째 번역 라벨 (조건부 생성)
+        self.translation_label_2 = None
+        if len(target_languages) > 1:
+            lang2_code = target_languages[1]
+            lang2_text = self.translated_results.get(lang2_code, "")
+            self.translation_label_2 = self.create_translation_label(lang2_code, lang2_text)
+            self.main_layout.addWidget(self.translation_label_2)
+
+        # 3. 원본 텍스트 라벨 (조건부 생성)
+        show_original = self.current_config.get("show_original_text", True)
+        if len(target_languages) < 2 and show_original:
+            self.original_label = QLabel(self.original_text)
+            self.original_label.setWordWrap(True)
+            self.original_label.setObjectName("original_label")
+            self.main_layout.addWidget(self.original_label)
+        else:
+            self.original_label = None
+
         self.opacity_effect = QGraphicsOpacityEffect(self)
         self.setGraphicsEffect(self.opacity_effect)
         
         self.update_styles()
 
-    def copy_to_clipboard(self):
-        """pyperclip 라이브러리를 사용하여 안정적으로 클립보드에 복사합니다."""
+    def create_translation_label(self, lang_code, text):
+        """번역 언어 라벨과 복사 버튼이 포함된 위젯을 생성합니다."""
+        container = QWidget()
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        
+        label_text = f"<b>[{lang_code.upper()}]</b> {text}"
+        label = QLabel(label_text)
+        label.setWordWrap(True)
+        label.setTextFormat(Qt.TextFormat.RichText)
+        label.setObjectName("translated_label")
+
+        copy_button = QPushButton("📋")
+        copy_button.setFixedSize(20, 20)
+        copy_button.setToolTip(f"{text} 복사")
+        copy_button.clicked.connect(lambda: self.copy_to_clipboard(text))
+
+        layout.addWidget(label, 1)
+        layout.addWidget(copy_button)
+        return container
+
+    def copy_to_clipboard(self, text_to_copy):
         try:
             import pyperclip
-            pyperclip.copy(self.translated_text)
-            print(f"클립보드에 복사됨: {self.translated_text}")
-        except ImportError:
-            print("오류: pyperclip 라이브러리가 설치되지 않았습니다. 'pip install pyperclip'을 실행해주세요.")
+            pyperclip.copy(text_to_copy)
+            print(f"클립보드에 복사됨: {text_to_copy}")
         except Exception as e:
             print(f"클립보드 복사 중 오류 발생: {e}")
 
-    def _adjust_color(self, color, amount):
-        """QColor를 사용하여 색상을 안전하게 조절하고, RGBA 문자열로 반환합니다."""
-        q_color = QColor(color)
-        if not q_color.isValid(): return color
-        
-        h, s, l, a = q_color.getHslF()
-        l = max(0.0, min(1.0, l + amount / 255.0))
-        
-        new_color = QColor.fromHslF(h, s, l, a)
-        return f"rgba({new_color.red()}, {new_color.green()}, {new_color.blue()}, {new_color.alpha()})"
-
     def update_styles(self):
-        """스타일시트를 사용하여 위젯의 모든 외형을 설정합니다."""
-        # current_config를 사용하여 스타일을 동적으로 적용
-        font_family = self.current_config.get("overlay_font_family", "Malgun Gothic")
         font_size = self.current_config.get("overlay_font_size", 18)
-        font_color = self.current_config.get("overlay_font_color", "#FFFFFF")
-        bg_color = self.current_config.get("overlay_bg_color", "rgba(0, 0, 0, 160)")
-        show_original = self.current_config.get("show_original_text", True)
         original_font_size_offset = self.current_config.get("original_text_font_size_offset", -4)
-        original_font_color = self.current_config.get("original_text_font_color", "#BBBBBB")
-
-        button_bg_color = self._adjust_color(bg_color, 25)
-        button_hover_color = self._adjust_color(bg_color, 50)
-        button_pressed_color = self._adjust_color(bg_color, 15)
-
+        
+        # 스타일시트는 CSS 선택자를 통해 일괄 적용
         self.setStyleSheet(f"""
-            #translationItem {{
-                background-color: {bg_color};
+            QWidget#translationItem {{
+                background-color: {self.current_config.get("overlay_bg_color", "rgba(0,0,0,160)")};
                 border-radius: 5px;
             }}
-            QLabel {{
-                background-color: transparent;
-            }}
-            #translated_label {{
-                color: {font_color};
-                font-family: "{font_family}";
+            QLabel#translated_label {{
+                color: {self.current_config.get("overlay_font_color", "#FFFFFF")};
+                font-family: "{self.current_config.get("overlay_font_family", "Malgun Gothic")}";
                 font-size: {font_size}px;
-                font-weight: bold;
             }}
-            #original_label {{
-                color: {original_font_color};
-                font-family: "{font_family}";
+            QLabel#original_label {{
+                color: {self.current_config.get("original_text_font_color", "#BBBBBB")};
+                font-family: "{self.current_config.get("overlay_font_family", "Malgun Gothic")}";
                 font-size: {font_size + original_font_size_offset}px;
-                padding: 0px 8px 5px 8px;
+                padding-top: 2px;
             }}
             QPushButton {{
-                background-color: {button_bg_color};
+                background-color: transparent;
                 border: none;
-                border-radius: 3px;
-                /* 아이콘을 위한 임시 스타일 (나중에 이미지로 교체 가능) */
-                color: {font_color};
-                font-weight: bold;
-                font-size: 10px;
-                qproperty-text: "📋";
+                color: #FFFFFF;
+                font-size: 12px;
             }}
             QPushButton:hover {{
-                background-color: {button_hover_color};
-            }}
-            QPushButton:pressed {{
-                background-color: {button_pressed_color};
+                background-color: rgba(255, 255, 255, 0.2);
+                border-radius: 3px;
             }}
         """)
-
-        self.translated_label.setObjectName("translated_label")
-        self.original_label.setObjectName("original_label")
-
-        self.original_label.setVisible(show_original)
         self.updateGeometry()
 
 
 class OverlayWindow(QWidget):
+    # ... (OverlayWindow의 나머지 코드는 이전 버전과 동일) ...
     MAX_ITEMS = 3
     RESIZE_MARGIN = 8
 
@@ -228,18 +217,23 @@ class OverlayWindow(QWidget):
         self.status_label.setStyleSheet(f"color: {color}; background-color: rgba(0,0,0,120); padding: 3px; border-radius: 3px;")
         for item in self.translation_items: item.update_styles()
 
-    def _center_on_screen(self):
-        screen = self.screen()
-        if screen: self.move((screen.geometry().width() - self.width()) // 2, 50)
+    def move_to_center_of_primary_screen(self):
+        primary_screen = QApplication.primaryScreen()
+        if not primary_screen:
+            print("주 모니터를 찾을 수 없습니다.")
+            return
+        screen_geometry = primary_screen.geometry()
+        target_x = screen_geometry.x() + (screen_geometry.width() - self.width()) // 2
+        target_y = screen_geometry.y() + 50
+        self.move(target_x, target_y)
 
-    @Slot(str, str)
-    def add_translation(self, original, translated):
-        if not translated: return
+    # <<<<<<< 핵심 수정: 받는 데이터 형식에 맞춰 add_translation 수정 >>>>>>>>>
+    @Slot(str, dict)
+    def add_translation(self, original, translated_results):
+        if not translated_results: return
         
-        # 실제 오버레이 창에서는 temp_config를 사용하지 않음
-        item = TranslationItem(original, translated, self.config_manager)
-        insert_index = 0
-        self.main_layout.insertWidget(insert_index, item)
+        item = TranslationItem(original, translated_results, self.config_manager)
+        self.main_layout.insertWidget(0, item)
         self.translation_items.insert(0, item)
         
         if len(self.translation_items) > self.MAX_ITEMS:
@@ -258,10 +252,7 @@ class OverlayWindow(QWidget):
     def update_status(self, message: str):
         if self.status_layout.parent():
             self.main_layout.removeItem(self.status_layout)
-        
         self.status_label.setText(message)
         self.status_label.setVisible(bool(message))
-
         if message:
-            insert_index = self.main_layout.count() - 1
-            self.main_layout.insertLayout(insert_index, self.status_layout)
+            self.main_layout.insertLayout(self.main_layout.count() - 1, self.status_layout)

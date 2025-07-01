@@ -1,22 +1,23 @@
-# src/config_manager.py (이 코드로 전체를 교체해주세요)
+# src/config_manager.py (프로필 시스템 적용 버전)
 import json
 import os
 import sys
+import copy
 
 class ConfigManager:
     def __init__(self, file_name='config.json'):
         if getattr(sys, 'frozen', False):
             base_path = os.path.dirname(sys.executable)
         else:
-            base_path = os.path.dirname(os.path.abspath(__file__))
-            base_path = os.path.join(base_path, '..')
+            base_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
 
         self.file_path = os.path.join(base_path, file_name)
         self.config = self.load_config()
 
     def get_default_config(self):
-        """기본 설정값을 반환합니다. (단순화 버전)"""
+        """하나의 프로필에 대한 기본 설정값을 반환합니다."""
         return {
+            "tesseract_path": "C:\Program Files\Tesseract-OCR",
             "google_credentials_path": "",
             "deepl_api_key": "",
             "source_languages": ["en-US"],
@@ -24,6 +25,7 @@ class ConfigManager:
             "sentence_commit_delay_ms": 250,
             "hotkey_start_translate": "shift+1",
             "hotkey_stop_translate": "shift+2",
+            "hotkey_ocr": "shift+3",             
             "hotkey_toggle_setup_window": "shift+`",
             "hotkey_quit_app": "shift+0",
             "overlay_font_family": "Malgun Gothic",
@@ -40,39 +42,75 @@ class ConfigManager:
         }
 
     def load_config(self):
-        default_config = self.get_default_config()
+        """
+        설정 파일을 로드합니다.
+        프로필 구조가 없으면, 기존 설정을 '기본 프로필'로 마이그레이션합니다.
+        """
         if not os.path.exists(self.file_path):
-            self.save_config(default_config)
-            return default_config
+            # 파일이 없으면 새로운 프로필 구조로 생성
+            default_profile = self.get_default_config()
+            new_config = {
+                "active_profile": "기본 프로필",
+                "profiles": {
+                    "기본 프로필": default_profile
+                }
+            }
+            self.save_config_data(new_config)
+            return new_config
         
         try:
             with open(self.file_path, 'r', encoding='utf-8') as f:
                 loaded_config = json.load(f)
-            
-            config_updated = False
-            # 누락된 키가 있으면 기본값으로 추가
-            for key, value in default_config.items():
-                if key not in loaded_config:
-                    loaded_config[key] = value
-                    config_updated = True
-            
-            # 더 이상 사용되지 않는 키가 있으면 제거
-            keys_to_remove = ["use_video_model", "translation_formality"]
-            for key in keys_to_remove:
-                if key in loaded_config:
-                    del loaded_config[key]
-                    config_updated = True
 
+            # --- 하위 호환성 마이그레이션 로직 ---
+            if "profiles" not in loaded_config or "active_profile" not in loaded_config:
+                print("구버전 설정 파일을 발견하여, 새로운 프로필 구조로 마이그레이션합니다.")
+                old_config_copy = copy.deepcopy(loaded_config)
+                
+                # profiles, active_profile 키 제거
+                old_config_copy.pop("profiles", None)
+                old_config_copy.pop("active_profile", None)
+
+                default_settings = self.get_default_config()
+                # 기존 설정 파일의 값을 기본값 위에 덮어씁니다.
+                default_settings.update(old_config_copy)
+
+                loaded_config = {
+                    "active_profile": "기본 프로필",
+                    "profiles": {
+                        "기본 프로필": default_settings
+                    }
+                }
+                self.save_config_data(loaded_config)
+            
+            # --- 누락된 키 보완 로직 ---
+            config_updated = False
+            default_keys = self.get_default_config()
+            for profile_name, profile_data in loaded_config["profiles"].items():
+                for key, value in default_keys.items():
+                    if key not in profile_data:
+                        profile_data[key] = value
+                        config_updated = True
+            
             if config_updated:
-                self.save_config(loaded_config)
+                self.save_config_data(loaded_config)
             
             return loaded_config
+
         except (json.JSONDecodeError, IOError) as e:
             print(f"설정 파일 읽기 오류: {e}. 기본 설정으로 복구합니다.")
-            self.save_config(default_config)
-            return default_config
+            default_profile = self.get_default_config()
+            new_config = {
+                "active_profile": "기본 프로필",
+                "profiles": {
+                    "기본 프로필": default_profile
+                }
+            }
+            self.save_config_data(new_config)
+            return new_config
 
-    def save_config(self, config_data):
+    def save_config_data(self, config_data):
+        """전체 설정 데이터를 파일에 저장합니다."""
         self.config = config_data
         try:
             with open(self.file_path, 'w', encoding='utf-8') as f:
@@ -80,16 +118,90 @@ class ConfigManager:
         except IOError as e:
             print(f"설정 파일 저장 오류: {e}")
 
+    def get_active_profile(self):
+        """현재 활성화된 프로필의 설정 데이터를 반환합니다."""
+        active_profile_name = self.config.get("active_profile", "기본 프로필")
+        return self.config["profiles"].get(active_profile_name)
+
     def get(self, key, default=None):
-        return self.config.get(key, default)
+        """활성화된 프로필에서 특정 설정 값을 가져옵니다."""
+        active_profile = self.get_active_profile()
+        if active_profile:
+            return active_profile.get(key, default)
+        return default
 
+# ConfigManager 클래스 내부
     def set(self, key, value):
-        self.config[key] = value
-        self.save_config(self.config)
+        """활성화된 프로필에 특정 설정 값을 저장합니다."""
+        active_profile_name = self.config.get("active_profile", "기본 프로필")
+        if active_profile_name in self.config["profiles"]:
+            # <<<<<<< 핵심 수정: 경로 관련 설정은 슬래시로 변환하여 저장 >>>>>>>>>
+            if key.endswith("_path") and isinstance(value, str):
+                self.config["profiles"][active_profile_name][key] = value.replace("\\", "/")
+            else:
+                self.config["profiles"][active_profile_name][key] = value
+            
+            self.save_config_data(self.config) # 변경 후 전체 저장
+    
+    # --- 새로운 프로필 관리 메소드들 ---
+    
+    def get_profile_names(self):
+        """모든 프로필의 이름 목록을 반환합니다."""
+        return list(self.config.get("profiles", {}).keys())
+        
+    def get_active_profile_name(self):
+        """활성화된 프로필의 이름을 반환합니다."""
+        return self.config.get("active_profile")
+        
+    def switch_profile(self, profile_name):
+        """활성 프로필을 전환합니다."""
+        if profile_name in self.config["profiles"]:
+            self.config["active_profile"] = profile_name
+            self.save_config_data(self.config)
+            print(f"프로필이 '{profile_name}'(으)로 전환되었습니다.")
+            return True
+        return False
+        
+    def add_profile(self, new_profile_name):
+        """새로운 프로필을 추가합니다. (현재 프로필 설정을 복사)"""
+        if new_profile_name in self.config["profiles"]:
+            return False, "이미 존재하는 프로필 이름입니다."
+        
+        current_profile_settings = copy.deepcopy(self.get_active_profile())
+        self.config["profiles"][new_profile_name] = current_profile_settings
+        self.save_config_data(self.config)
+        print(f"새 프로필 '{new_profile_name}'이(가) 추가되었습니다.")
+        return True, "성공"
+        
+    def remove_profile(self, profile_name):
+        """프로필을 삭제합니다."""
+        if profile_name not in self.config["profiles"]:
+            return False, "존재하지 않는 프로필입니다."
+        if len(self.config["profiles"]) <= 1:
+            return False, "최소 1개의 프로필은 유지해야 합니다."
+            
+        del self.config["profiles"][profile_name]
+        
+        # 삭제된 프로필이 활성 프로필이었다면, 다른 프로필로 전환
+        if self.config["active_profile"] == profile_name:
+            self.config["active_profile"] = list(self.config["profiles"].keys())[0]
+            
+        self.save_config_data(self.config)
+        print(f"프로필 '{profile_name}'이(가) 삭제되었습니다.")
+        return True, "성공"
 
-    def reset_to_defaults(self):
-        """설정을 기본값으로 되돌리고 저장합니다."""
-        defaults = self.get_default_config()
-        self.save_config(defaults)
-        self.config = defaults
-        return defaults
+    def rename_profile(self, old_name, new_name):
+        """프로필의 이름을 변경합니다."""
+        if old_name not in self.config["profiles"]:
+            return False, "존재하지 않는 프로필입니다."
+        if new_name in self.config["profiles"]:
+            return False, "이미 존재하는 프로필 이름입니다."
+            
+        self.config["profiles"][new_name] = self.config["profiles"].pop(old_name)
+        
+        if self.config["active_profile"] == old_name:
+            self.config["active_profile"] = new_name
+            
+        self.save_config_data(self.config)
+        print(f"프로필 이름이 '{old_name}'에서 '{new_name}'(으)로 변경되었습니다.")
+        return True, "성공"
