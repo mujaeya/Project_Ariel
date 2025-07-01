@@ -162,16 +162,42 @@ class ConfigManager:
             return True
         return False
         
-    def add_profile(self, new_profile_name):
-        """새로운 프로필을 추가합니다. (현재 프로필 설정을 복사)"""
-        if new_profile_name in self.config["profiles"]:
-            return False, "이미 존재하는 프로필 이름입니다."
+# src/config_manager.py의 ConfigManager 클래스 내부
+
+def add_profile(self, new_profile_name):
+    """(재수정) 새로운 프로필을 합리적인 기본값으로 추가합니다."""
+    if new_profile_name in self.config["profiles"]:
+        return False, "이미 존재하는 프로필 이름입니다."
+    
+    new_profile_settings = self.get_default_config()
+
+    # [핵심 수정] 원본 언어는 항상 'en-US' (미국 영어)로 고정합니다.
+    new_profile_settings['source_languages'] = ['en-US']
+
+    # [핵심 수정] 번역 언어를 시스템 언어에서 감지합니다.
+    try:
+        system_locale_name = QLocale.system().name()
+        bcp47_code = QLocale(system_locale_name).bcp47Name()
         
-        current_profile_settings = copy.deepcopy(self.get_active_profile())
-        self.config["profiles"][new_profile_name] = current_profile_settings
-        self.save_config_data(self.config)
-        print(f"새 프로필 '{new_profile_name}'이(가) 추가되었습니다.")
-        return True, "성공"
+        supported_codes_lower = {code.lower(): original_code for code in SUPPORTED_LANGUAGES.values()}
+
+        # 시스템 언어(예: ko-kr) 또는 주 언어(예: ko)가 지원 목록에 있는지 확인
+        if bcp47_code.lower() in supported_codes_lower:
+            target_lang = supported_codes_lower[bcp47_code.lower()]
+        elif bcp47_code.split('-')[0] in supported_codes_lower:
+            target_lang = supported_codes_lower[bcp47_code.split('-')[0]]
+        else:
+            target_lang = 'KO' # 감지 실패 또는 미지원 시 한국어로 기본 설정
+
+        new_profile_settings['target_languages'] = [target_lang]
+            
+    except Exception as e:
+        logging.warning(f"시스템 언어 감지 실패: {e}. 기본 번역 언어로 설정합니다.")
+        new_profile_settings['target_languages'] = ['KO']
+
+    self.config["profiles"][new_profile_name] = new_profile_settings
+    self.save_config_data(self.config)
+    return True, "성공"
         
     def remove_profile(self, profile_name):
         """프로필을 삭제합니다."""

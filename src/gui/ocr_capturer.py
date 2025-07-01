@@ -1,27 +1,29 @@
-# src/gui/ocr_capturer.py (새 파일)
+# src/gui/ocr_capturer.py (이 코드로 전체 교체)
 import sys
-from PySide6.QtWidgets import QWidget, QApplication
+from PySide6.QtWidgets import QWidget, QApplication, QMessageBox
 from PySide6.QtCore import Qt, Signal, QPoint, QRect
-from PySide6.QtGui import QPainter, QPen, QColor, QScreen
-from PIL import ImageGrab
+from PySide6.QtGui import QPainter, QPen, QColor
+import mss
+from PIL import Image
 import pytesseract
+import logging
 
 class OcrCapturer(QWidget):
     """
     화면의 특정 영역을 캡처하고 OCR을 통해 텍스트를 추출하는 위젯.
+    (Pillow 대신 mss 라이브러리를 사용하여 안정성 향상)
     """
     text_captured = Signal(str)
 
     def __init__(self, tesseract_cmd_path=None):
         super().__init__()
-        
-        # Tesseract 실행 파일 경로 설정 (설치 경로에 따라 변경 필요)
+
         if tesseract_cmd_path:
             pytesseract.pytesseract.tesseract_cmd = tesseract_cmd_path
 
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool)
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground) # 투명 배경
-        self.setCursor(Qt.CursorShape.CrossCursor) # 십자 커서
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setCursor(Qt.CursorShape.CrossCursor)
 
         self.screen_geometry = QApplication.primaryScreen().geometry()
         self.setGeometry(self.screen_geometry)
@@ -30,19 +32,15 @@ class OcrCapturer(QWidget):
         self.end = QPoint()
 
     def paintEvent(self, event):
-        """선택 영역을 사각형으로 그립니다."""
         painter = QPainter(self)
-        # 반투명한 검은색 배경
         painter.fillRect(self.rect(), QColor(0, 0, 0, 100))
         
-        # 선택된 영역만 투명하게 만듦
         if not self.begin.isNull() and not self.end.isNull():
             selection_rect = QRect(self.begin, self.end).normalized()
             painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
             painter.fillRect(selection_rect, Qt.GlobalColor.transparent)
             painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
             
-            # 선택 영역 테두리
             pen = QPen(Qt.GlobalColor.white, 2, Qt.PenStyle.SolidLine)
             painter.setPen(pen)
             painter.drawRect(selection_rect)
@@ -58,35 +56,50 @@ class OcrCapturer(QWidget):
 
     def mouseReleaseEvent(self, event):
         self.end = event.position().toPoint()
-        self.close() # 영역 선택이 끝나면 창을 닫음
+        self.close()
         self.capture_screen()
 
     def capture_screen(self):
-        """선택된 영역을 캡처하고 텍스트를 추출합니다."""
+        """선택된 영역을 캡처하고 텍스트를 추출합니다. (mss 라이브러리 사용)"""
         selection_rect = QRect(self.begin, self.end).normalized()
+        dpr = self.devicePixelRatioF()
         
-        # 다중 모니터를 고려하여 화면 배율(DPR) 적용
-        dpr = self.devicePixelRatio()
-        capture_rect = (
-            selection_rect.x() * dpr,
-            selection_rect.y() * dpr,
-            (selection_rect.x() + selection_rect.width()) * dpr,
-            (selection_rect.y() + selection_rect.height()) * dpr
-        )
+        capture_rect = {
+            "top": int(selection_rect.y() * dpr),
+            "left": int(selection_rect.x() * dpr),
+            "width": int(selection_rect.width() * dpr),
+            "height": int(selection_rect.height() * dpr)
+        }
+        
+        # 너비나 높이가 0이면 캡처 시도 안 함
+        if capture_rect["width"] <= 0 or capture_rect["height"] <= 0:
+            logging.warning("선택된 영역이 없어 OCR 캡처를 건너뜁니다.")
+            return
 
         try:
-            img = ImageGrab.grab(bbox=capture_rect)
-            # OCR 수행 (한국어+영어)
+            with mss.mss() as sct:
+                sct_img = sct.grab(capture_rect)
+                img = Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
+
             extracted_text = pytesseract.image_to_string(img, lang='kor+eng')
             
             if extracted_text.strip():
-                print(f"OCR 추출 텍스트: {extracted_text.strip()}")
+                logging.info(f"OCR 추출 텍스트: {extracted_text.strip()}")
                 self.text_captured.emit(extracted_text.strip())
             else:
-                print("OCR: 텍스트를 찾지 못했습니다.")
+                logging.info("OCR: 텍스트를 찾지 못했습니다.")
 
         except FileNotFoundError:
-            print("OCR 오류: Tesseract를 찾을 수 없습니다. 설치 경로를 확인하세요.")
-            # 이 부분에 사용자에게 알림을 주는 로직 추가 가능 (예: QMessageBox)
+            logging.error("OCR 오류: Tesseract를 찾을 수 없습니다.")
+            QMessageBox.critical(self, "OCR 오류", "Tesseract를 찾을 수 없습니다.\n설정에서 tesseract.exe 경로를 올바르게 지정했는지 확인해주세요.")
         except Exception as e:
-            print(f"OCR 캡처 중 오류 발생: {e}")
+            error_msg = str(e)
+            logging.error(f"OCR 캡처 중 오류 발생: {error_msg}")
+            # [핵심] 상세한 권한 오류 안내
+            if "access" in error_msg.lower() or "denied" in error_msg.lower() or "[WinError 5]" in error_msg:
+                 QMessageBox.critical(self, "OCR 권한 오류",
+                                     "화면을 캡처할 수 없습니다 (Access is denied).\n\n"
+                                     "이 문제는 주로 다른 프로그램이 화면 보호 기능을 사용 중일 때 발생합니다.\n"
+                                     "실행 중인 보안 프로그램, 안티 바이러스, 게임의 안티치트 등을 확인해주세요.")
+            else:
+                 QMessageBox.critical(self, "OCR 오류", f"화면 번역 중 예기치 않은 오류가 발생했습니다:\n{error_msg}")

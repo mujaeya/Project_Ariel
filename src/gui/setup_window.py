@@ -1,4 +1,5 @@
-# src/gui/setup_window.py (최종 솔루션 버전)
+# src/gui/setup_window.py (이 코드로 전체를 교체해주세요)
+# (이 파일의 다른 부분은 이전과 동일하며, SetupWindow 클래스의 __init__ 부분만 수정되었습니다.)
 import sys
 import os
 import logging
@@ -8,13 +9,14 @@ from PySide6.QtWidgets import (QWidget, QHBoxLayout, QListWidget, QStackedWidget
                              QCheckBox, QColorDialog, QInputDialog, QMessageBox)
 from PySide6.QtCore import Qt, Signal, QSize
 from PySide6.QtGui import QKeySequence, QPalette, QColor
-
+from gui.overlay_window import TranslationItem
 from utils import resource_path
 from config_manager import ConfigManager
 from gui.fluent_widgets import (NavigationItemWidget, SettingsPage, TitleLabel, 
                                DescriptionLabel, SettingsCard)
 
-# 지원 언어 목록 (DeepL API 기준)
+# ... ApiSettingsPage, LanguageSettingsPage 등 다른 클래스들은 이전과 동일 ...
+# SUPPORTED_LANGUAGES, CODE_TO_NAME 코드는 그대로 유지
 SUPPORTED_LANGUAGES = {
     "Bulgarian": "BG", "Czech": "CS", "Danish": "DA", "German": "DE",
     "Greek": "EL", "English (British)": "EN-GB", "English (American)": "EN-US",
@@ -27,6 +29,7 @@ SUPPORTED_LANGUAGES = {
     "Ukrainian": "UK", "Chinese (Simplified)": "ZH"
 }
 CODE_TO_NAME = {v: k for k, v in SUPPORTED_LANGUAGES.items()}
+
 
 class ApiSettingsPage(SettingsPage):
     """API 및 Tesseract 경로 설정 페이지"""
@@ -114,14 +117,33 @@ class LanguageSettingsPage(SettingsPage):
         self.add_widget(target_card)
         
         delay_card = SettingsCard("번역 딜레이 설정", "음성 인식이 끝난 후, 문장을 조합하기 위해 기다리는 시간입니다.\n짧을수록 반응이 빠르지만, 문장이 끊겨 번역될 수 있습니다.")
+
         self.sentence_delay_spinbox = QSpinBox()
         self.sentence_delay_spinbox.setRange(50, 3000)
         self.sentence_delay_spinbox.setSuffix(" ms")
+
+        presets_layout = QHBoxLayout()
+        presets_layout.addWidget(QLabel("추천 설정:"))
+        fast_button = QPushButton("빠른 반응 (250ms)")
+        default_button = QPushButton("기본값 (700ms)")
+        stable_button = QPushButton("안정적 문장 (1200ms)")
+
+        fast_button.clicked.connect(lambda: self.sentence_delay_spinbox.setValue(250))
+        default_button.clicked.connect(lambda: self.sentence_delay_spinbox.setValue(700))
+        stable_button.clicked.connect(lambda: self.sentence_delay_spinbox.setValue(1200))
+
+        presets_layout.addWidget(fast_button)
+        presets_layout.addWidget(default_button)
+        presets_layout.addWidget(stable_button)
+        presets_layout.addStretch()
+
         delay_layout = QHBoxLayout()
-        delay_layout.addWidget(QLabel("문장 조합 딜레이:"))
+        delay_layout.addWidget(QLabel("수동 설정:"))
         delay_layout.addWidget(self.sentence_delay_spinbox)
         delay_layout.addStretch()
+
         delay_card.add_layout(delay_layout)
+        delay_card.add_layout(presets_layout)
         self.add_widget(delay_card)
 
     def add_language_selector(self, type, lang_code=None):
@@ -168,15 +190,17 @@ class LanguageSettingsPage(SettingsPage):
         self.add_target_lang_button.setEnabled(len(self.target_lang_selectors) < 2)
 
     def load_settings(self):
-        # 기존 위젯들을 모두 제거
-        while self.source_lang_selectors: self.remove_language_selector(self.source_lang_selectors[0], self.source_lang_selectors, self.source_lang_layout)
-        while self.target_lang_selectors: self.remove_language_selector(self.target_lang_selectors[0], self.target_lang_selectors, self.target_lang_layout)
+        while len(self.source_lang_selectors) > 0: self.remove_language_selector(self.source_lang_selectors[0], self.source_lang_selectors, self.source_lang_layout)
+        while len(self.target_lang_selectors) > 0: self.remove_language_selector(self.target_lang_selectors[0], self.target_lang_selectors, self.target_lang_layout)
 
         source_langs = self.config_manager.get("source_languages", ["en-US"])
         if not source_langs: source_langs = ["en-US"]
         for lang_code in source_langs: self.add_language_selector("source", lang_code)
         
-        for lang_code in self.config_manager.get("target_languages", ["KO"]): self.add_language_selector("target", lang_code)
+        target_langs = self.config_manager.get("target_languages", ["KO"])
+        if not target_langs: target_langs = []
+        for lang_code in target_langs: self.add_language_selector("target", lang_code)
+        
         self.sentence_delay_spinbox.setValue(self.config_manager.get("sentence_commit_delay_ms", 700))
         self.update_add_button_state()
 
@@ -218,11 +242,37 @@ class StyleSettingsPage(SettingsPage):
         self.font_color_widget = self.create_color_widget("번역 글자색")
         self.bg_color_widget = self.create_color_widget("번역 배경색 (투명도 포함)", has_alpha=True)
         self.original_text_font_color_widget = self.create_color_widget("원본 글자색")
-        
+
         color_card.add_widget(self.font_color_widget)
         color_card.add_widget(self.bg_color_widget)
         color_card.add_widget(self.original_text_font_color_widget)
         self.add_widget(color_card)
+
+        preview_card = SettingsCard("실시간 미리보기")
+        self.temp_preview_config = {}
+
+        self.preview_item = TranslationItem(
+            "This is the original text.", 
+            {"KO": "이것은 번역된 텍스트입니다.", "JA": "これは翻訳されたテキストです。"},
+            self.config_manager,
+            temp_config=self.temp_preview_config
+        )
+        preview_card.add_widget(self.preview_item)
+        self.add_widget(preview_card)
+        
+        self.show_original_checkbox.stateChanged.connect(self.update_preview)
+        self.font_size_spinbox.valueChanged.connect(self.update_preview)
+        self.original_font_size_spinbox.valueChanged.connect(self.update_preview)
+        
+    def update_preview(self):
+        self.temp_preview_config['overlay_font_size'] = self.font_size_spinbox.value()
+        self.temp_preview_config['original_text_font_size_offset'] = self.original_font_size_spinbox.value()
+        self.temp_preview_config['show_original_text'] = self.show_original_checkbox.isChecked()
+        self.temp_preview_config['overlay_font_color'] = self.font_color_widget.preview.palette().color(QPalette.ColorRole.Window).name()
+        self.temp_preview_config['overlay_bg_color'] = self.bg_color_widget.preview.palette().color(QPalette.ColorRole.Window).name(QColor.NameFormat.HexArgb)
+        self.temp_preview_config['original_text_font_color'] = self.original_text_font_color_widget.preview.palette().color(QPalette.ColorRole.Window).name()
+        
+        self.preview_item.update_styles()
 
     def create_color_widget(self, text, has_alpha=False):
         container = QWidget()
@@ -244,6 +294,7 @@ class StyleSettingsPage(SettingsPage):
             palette = preview_widget.palette()
             palette.setColor(QPalette.ColorRole.Window, color)
             preview_widget.setPalette(palette)
+            self.update_preview()
 
     def load_settings(self):
         self.show_original_checkbox.setChecked(self.config_manager.get("show_original_text", True))
@@ -252,6 +303,7 @@ class StyleSettingsPage(SettingsPage):
         self._update_color_preview(self.font_color_widget, self.config_manager.get("overlay_font_color", "#FFFFFF"))
         self._update_color_preview(self.bg_color_widget, self.config_manager.get("overlay_bg_color", "#80000000"))
         self._update_color_preview(self.original_text_font_color_widget, self.config_manager.get("original_text_font_color", "#CCCCCC"))
+        self.update_preview()
 
     def _update_color_preview(self, container_widget, color_str):
         preview = container_widget.preview
@@ -277,9 +329,7 @@ class HotkeySettingsPage(SettingsPage):
         self.add_widget(DescriptionLabel("자주 사용하는 기능을 키보드 단축키로 빠르게 실행하세요."))
         
         hotkey_card = SettingsCard("전역 단축키")
-        # [개선] UI 라벨을 TrayIcon과 일관성 있게 수정
         self.start_hotkey_edit = self.create_hotkey_edit(hotkey_card, "음성 번역 시작/중지:")
-        # [핵심] OCR 단축키 설정 UI 추가
         self.ocr_hotkey_edit = self.create_hotkey_edit(hotkey_card, "화면 번역 (OCR):")
         self.setup_hotkey_edit = self.create_hotkey_edit(hotkey_card, "설정 창 열기/닫기:")
         self.quit_hotkey_edit = self.create_hotkey_edit(hotkey_card, "프로그램 종료:")
@@ -295,16 +345,13 @@ class HotkeySettingsPage(SettingsPage):
         
     def load_settings(self):
         self.start_hotkey_edit.setKeySequence(QKeySequence.fromString(self.config_manager.get("hotkey_start_translate", "shift+1")))
-        # [핵심] OCR 단축키 로드
         self.ocr_hotkey_edit.setKeySequence(QKeySequence.fromString(self.config_manager.get("hotkey_ocr", "shift+3")))
         self.setup_hotkey_edit.setKeySequence(QKeySequence.fromString(self.config_manager.get("hotkey_toggle_setup_window", "shift+`")))
         self.quit_hotkey_edit.setKeySequence(QKeySequence.fromString(self.config_manager.get("hotkey_quit_app", "shift+0")))
 
     def save_settings(self):
-        # PortableText 형식으로 저장해야 keyboard 라이브러리가 인식 가능
         portable_format = QKeySequence.SequenceFormat.PortableText
         self.config_manager.set("hotkey_start_translate", self.start_hotkey_edit.keySequence().toString(portable_format).lower())
-        # [핵심] OCR 단축키 저장
         self.config_manager.set("hotkey_ocr", self.ocr_hotkey_edit.keySequence().toString(portable_format).lower())
         self.config_manager.set("hotkey_toggle_setup_window", self.setup_hotkey_edit.keySequence().toString(portable_format).lower())
         self.config_manager.set("hotkey_quit_app", self.quit_hotkey_edit.keySequence().toString(portable_format).lower())
@@ -319,10 +366,12 @@ class ProfileSettingsPage(SettingsPage):
         self.config_manager = config_manager
         self.add_widget(TitleLabel("프로필 관리"))
         self.add_widget(DescriptionLabel("다양한 작업 환경에 맞는 설정 프리셋을 저장하고 관리합니다."))
+        
         profile_card = SettingsCard("프로필 목록")
         self.profile_list_widget = QListWidget()
         self.profile_list_widget.itemSelectionChanged.connect(self.update_button_states)
         profile_card.add_widget(self.profile_list_widget)
+
         button_layout = QHBoxLayout()
         self.add_button = QPushButton("새로 만들기...")
         self.rename_button = QPushButton("이름 변경...")
@@ -333,6 +382,12 @@ class ProfileSettingsPage(SettingsPage):
         button_layout.addWidget(self.activate_button)
         profile_card.add_layout(button_layout)
         self.add_widget(profile_card)
+
+        notification_card = SettingsCard("알림 설정")
+        self.show_tray_notifications_checkbox = QCheckBox("프로필 전환, 번역 시작/중지 시 트레이 알림 표시")
+        notification_card.add_widget(self.show_tray_notifications_checkbox)
+        self.add_widget(notification_card)
+        
         self.add_button.clicked.connect(self.add_profile); self.rename_button.clicked.connect(self.rename_profile)
         self.remove_button.clicked.connect(self.remove_profile); self.activate_button.clicked.connect(self.activate_profile)
 
@@ -348,6 +403,7 @@ class ProfileSettingsPage(SettingsPage):
                 item.setText(f"{name} (활성)")
                 self.profile_list_widget.setCurrentItem(item)
         self.update_button_states()
+        self.show_tray_notifications_checkbox.setChecked(self.config_manager.get("show_tray_notifications", True))
 
     def update_button_states(self):
         selected_item = self.profile_list_widget.currentItem()
@@ -378,10 +434,13 @@ class ProfileSettingsPage(SettingsPage):
         if not selected_item: return
         profile_name = selected_item.text().replace(" (활성)", "")
         reply = QMessageBox.question(self, "프로필 삭제", f"정말로 '{profile_name}' 프로필을 삭제하시겠습니까?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
-        if reply == QMessageBox.StandardButton.Yes:
-            success, message = self.config_manager.remove_profile(profile_name)
-            if success: self.load_settings(); self.profile_changed.emit()
-            else: QMessageBox.warning(self, "오류", message)
+    if reply == QMessageBox.StandardButton.Yes:
+        success, message = self.config_manager.remove_profile(profile_name)
+        if success:
+            self.load_settings()
+            self.profile_changed.emit() 
+        else:
+            QMessageBox.warning(self, "오류", message)
 
     def activate_profile(self):
         selected_item = self.profile_list_widget.currentItem()
@@ -390,12 +449,15 @@ class ProfileSettingsPage(SettingsPage):
         if self.config_manager.switch_profile(profile_name):
             self.load_settings(); self.profile_changed.emit()
     
-    def save_settings(self): pass
+    def save_settings(self):
+        self.config_manager.set("show_tray_notifications", self.show_tray_notifications_checkbox.isChecked())
+
 
 # --- 메인 설정 창 ---
 class SetupWindow(QWidget):
     closed = Signal(bool, str)
-    def __init__(self, config_manager: ConfigManager):
+    # [핵심 수정] 생성자에 initial_page_index 인자 추가
+    def __init__(self, config_manager: ConfigManager, initial_page_index=0):
         super().__init__()
         self.config_manager = config_manager
         self.is_saved = False
@@ -411,7 +473,9 @@ class SetupWindow(QWidget):
         self.cancel_button.clicked.connect(self.close)
         self.profile_page.profile_changed.connect(self.load_settings)
         self.load_settings()
-        self.navigation_bar.setCurrentRow(0)
+        
+        # [핵심 수정] 생성자 마지막에서 전달받은 인덱스로 페이지를 설정
+        self.navigation_bar.setCurrentRow(initial_page_index)
 
     def _init_ui(self):
         main_layout = QHBoxLayout(self); main_layout.setContentsMargins(0,0,0,0); main_layout.setSpacing(0)
@@ -429,14 +493,13 @@ class SetupWindow(QWidget):
         main_layout.addWidget(self.navigation_bar); main_layout.addLayout(content_layout, 1)
 
     def _add_pages(self):
-        # 모든 페이지 인스턴스를 생성
         self.profile_page = ProfileSettingsPage(self.config_manager)
         self.api_page = ApiSettingsPage(self.config_manager)
         self.lang_page = LanguageSettingsPage(self.config_manager)
         self.style_page = StyleSettingsPage(self.config_manager)
         self.hotkey_page = HotkeySettingsPage(self.config_manager)
         
-        # [핵심] 모든 아이콘 경로에 resource_path 적용
+        # 페이지 인덱스: 0=프로필, 1=연동 서비스, 2=언어, 3=스타일, 4=단축키
         self.add_page(self.profile_page, "프로필", 'assets/icons/profile.svg')
         self.add_page(self.api_page, "연동 서비스", 'assets/icons/key.svg')
         self.add_page(self.lang_page, "언어 및 번역", 'assets/icons/language.svg')
@@ -447,7 +510,6 @@ class SetupWindow(QWidget):
         self.pages.append(page_widget)
         self.pages_stack.addWidget(page_widget)
         item = QListWidgetItem()
-        # NavigationItemWidget 생성 시에는 상대 경로를 그대로 전달
         item_widget = NavigationItemWidget(icon_relative_path, title)
         item.setSizeHint(item_widget.sizeHint())
         self.navigation_bar.addItem(item)
@@ -462,7 +524,6 @@ class SetupWindow(QWidget):
                 widget.set_icon_color(color)
 
     def load_stylesheet(self):
-        # [핵심] 스타일시트 경로에도 resource_path 적용
         style_path = resource_path('style.qss')
         try:
             with open(style_path, 'r', encoding='utf-8') as f:
