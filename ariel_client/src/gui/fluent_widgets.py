@@ -1,4 +1,4 @@
-# src/gui/fluent_widgets.py (resource_path 적용 최종본)
+# ariel_client/src/gui/fluent_widgets.py (이 코드로 전체 교체)
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QFrame, QScrollArea)
 from PySide6.QtCore import Qt
@@ -6,16 +6,14 @@ from PySide6.QtGui import QPixmap, QPainter, QColor
 import os
 import logging
 
-# [핵심 변경] main.py에 정의된 resource_path 함수를 임포트
-# 이를 통해 빌드된 환경(.exe)에서도 리소스 경로를 올바르게 찾을 수 있습니다.
-from utils import resource_path
+# [수정] 상대 경로로 변경
+from ..utils import resource_path
 
 # --- 탐색 메뉴 아이템 위젯 ---
 class NavigationItemWidget(QWidget):
     """왼쪽 탐색 메뉴에 들어갈 아이콘과 텍스트 라벨 위젯"""
     def __init__(self, icon_path, text):
         super().__init__()
-        # [핵심 변경] resource_path 함수를 사용하여 아이콘 경로를 절대 경로로 변환합니다.
         self.icon_path = resource_path(icon_path)
         
         self.layout = QHBoxLayout(self)
@@ -36,9 +34,8 @@ class NavigationItemWidget(QWidget):
     def set_icon_color(self, color):
         """SVG 아이콘의 색상을 변경하여 적용합니다."""
         if not os.path.exists(self.icon_path):
-            # print() 대신 logging 사용
             logging.warning(f"아이콘 파일 없음: {self.icon_path}")
-            self.icon_label.setPixmap(QPixmap()) # 빈 Pixmap 설정
+            self.icon_label.setPixmap(QPixmap())
             return
 
         pixmap = QPixmap(self.icon_path)
@@ -47,7 +44,8 @@ class NavigationItemWidget(QWidget):
             return
 
         painter = QPainter(pixmap)
-        painter.setCompositionMode(QPainter.CompositionMode.SourceIn)
+        # [수정] QPainter.CompositionMode.SourceIn -> QPainter.CompositionMode_SourceIn
+        painter.setCompositionMode(QPainter.CompositionMode_SourceIn)
         painter.fillRect(pixmap.rect(), QColor(color))
         painter.end()
         self.icon_label.setPixmap(pixmap.scaled(

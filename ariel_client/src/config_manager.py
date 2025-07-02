@@ -17,8 +17,7 @@ class ConfigManager:
     def get_default_config(self):
         """하나의 프로필에 대한 기본 설정값을 반환합니다."""
         return {
-            "tesseract_path": "C:\Program Files\Tesseract-OCR",
-            "google_credentials_path": "",
+            "server_url": "http://127.0.0.1:8000",
             "deepl_api_key": "",
             "source_languages": ["en-US"],
             "target_languages": ["KO"],
