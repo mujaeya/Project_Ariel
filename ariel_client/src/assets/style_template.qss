@@ -1,0 +1,16 @@
+/* 커스텀 테마 템플릿 (개선) */
+QWidget { color: %TEXT_PRIMARY%; }
+SetupWindow, #setupWindow { background-color: %BACKGROUND_PRIMARY%; }
+#navigationBar { background-color: %BACKGROUND_SECONDARY%; border-right: 1px solid %BACKGROUND_TERTIARY%; }
+#navigationBar::item:selected { background-color: %INTERACTIVE_ACCENT%; }
+#navigationBar::item:hover:!selected { background-color: %BACKGROUND_TERTIARY%; }
+#settingsPage { background-color: %BACKGROUND_TERTIARY%; }
+#titleLabel { color: %TEXT_HEADER%; font-size: 24px; font-weight: bold; }
+#descriptionLabel, #cardDescriptionLabel { color: %TEXT_MUTED%; }
+#settingsCard { background-color: %BACKGROUND_SECONDARY%; border: 1px solid %BACKGROUND_PRIMARY%; border-radius: 8px; }
+#cardTitleLabel { font-weight: bold; color: %TEXT_NORMAL%; }
+QPushButton { background-color: %INTERACTIVE_NORMAL%; border: none; border-radius: 5px; padding: 8px 15px; }
+QPushButton:hover { background-color: %INTERACTIVE_HOVER%; }
+QPushButton:pressed { background-color: %INTERACTIVE_PRESSED%; }
+QPushButton#primaryButton { background-color: %INTERACTIVE_ACCENT%; color: #FFFFFF; font-weight: bold; }
+/* ... (이하 생략) ... */

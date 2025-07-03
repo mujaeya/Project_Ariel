@@ -1,0 +1,20 @@
+/* 라이트 모드 스타일시트 (개선) */
+QWidget { color: #212529; } /* 기본 텍스트: 완전 검정보다 부드러운 색 */
+SetupWindow, #setupWindow { background-color: #f8f9fa; } /* 배경: 부드러운 오프화이트 */
+#navigationBar { background-color: #ffffff; border-right: 1px solid #dee2e6; }
+#navigationBar::item:selected { background-color: #e7f5ff; } /* 선택 항목: 은은한 하늘색 */
+#navigationBar::item:hover:!selected { background-color: #f1f3f5; }
+#settingsPage { background-color: #f8f9fa; }
+#titleLabel { color: #000000; font-size: 24px; font-weight: bold; }
+#descriptionLabel, #cardDescriptionLabel { color: #6c757d; }
+#settingsCard { background-color: #ffffff; border: 1px solid #dee2e6; border-radius: 8px; }
+#cardTitleLabel { font-weight: bold; color: #343a40; }
+QPushButton { background-color: #e9ecef; border: none; border-radius: 5px; padding: 8px 15px; }
+QPushButton:hover { background-color: #dee2e6; }
+QPushButton:pressed { background-color: #ced4da; }
+QPushButton#primaryButton { background-color: #007bff; color: #FFFFFF; font-weight: bold; }
+QPushButton#primaryButton:hover { background-color: #0069d9; }
+QPushButton#primaryButton:pressed { background-color: #0056b3; }
+QLineEdit, QKeySequenceEdit, QSpinBox, QComboBox { background-color: #ffffff; border: 1px solid #ced4da; border-radius: 5px; padding: 7px; }
+QLineEdit:focus, QKeySequenceEdit:focus, QSpinBox:focus { border-color: #007bff; }
+QComboBox::down-arrow { image: url(%ASSET_PATH%/icons/chevron_down_dark.svg); }

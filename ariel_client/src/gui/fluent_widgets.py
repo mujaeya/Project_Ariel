@@ -1,12 +1,11 @@
-# ariel_client/src/gui/fluent_widgets.py (이 코드로 전체 교체)
+import os
+import logging
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QFrame, QScrollArea)
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap, QPainter, QColor
-import os
-import logging
 
-# [수정] 상대 경로로 변경
+# [수정] 누락되었던 resource_path 임포트 추가
 from ..utils import resource_path
 
 # --- 탐색 메뉴 아이템 위젯 ---
@@ -14,7 +13,8 @@ class NavigationItemWidget(QWidget):
     """왼쪽 탐색 메뉴에 들어갈 아이콘과 텍스트 라벨 위젯"""
     def __init__(self, icon_path, text):
         super().__init__()
-        self.icon_path = resource_path(icon_path)
+        # icon_path는 setup_window에서 이미 resource_path로 처리되어 넘어오므로 중복 호출 방지
+        self.icon_path = icon_path 
         
         self.layout = QHBoxLayout(self)
         self.layout.setContentsMargins(15, 10, 15, 10)
@@ -24,27 +24,29 @@ class NavigationItemWidget(QWidget):
         self.icon_label.setFixedSize(22, 22)
         
         self.text_label = QLabel(text)
+        self.text_label.setObjectName("navigationItemLabel") # CSS 적용을 위해 ObjectName 추가
         
         self.layout.addWidget(self.icon_label)
         self.layout.addWidget(self.text_label)
-        self.layout.addStretch()
+        # self.layout.addStretch() # 텍스트가 왼쪽 정렬되도록 Stretch 제거
 
-        self.set_icon_color("#333333") # 기본 아이콘 색상
+        self.set_icon_color("#AAAAAA") # 기본 비활성 아이콘 색상
 
     def set_icon_color(self, color):
         """SVG 아이콘의 색상을 변경하여 적용합니다."""
         if not os.path.exists(self.icon_path):
-            logging.warning(f"아이콘 파일 없음: {self.icon_path}")
-            self.icon_label.setPixmap(QPixmap())
+            logging.warning(f"아이콘 파일을 찾을 수 없습니다: {self.icon_path}")
+            self.icon_label.setPixmap(QPixmap()) # 아이콘 없음을 표시
             return
 
+        # QPixmap으로 SVG 파일을 직접 로드할 수 있습니다.
         pixmap = QPixmap(self.icon_path)
         if pixmap.isNull():
-            logging.error(f"아이콘 파일 로드 실패: {self.icon_path}")
+            logging.error(f"아이콘 파일 로드에 실패했습니다: {self.icon_path}")
             return
 
         painter = QPainter(pixmap)
-        # [수정] QPainter.CompositionMode.SourceIn -> QPainter.CompositionMode_SourceIn
+        # [수정] 잘못된 상수 QPainter.CompositionMode.SourceIn -> 올바른 상수 QPainter.CompositionMode_SourceIn
         painter.setCompositionMode(QPainter.CompositionMode_SourceIn)
         painter.fillRect(pixmap.rect(), QColor(color))
         painter.end()
@@ -62,11 +64,13 @@ class SettingsPage(QWidget):
         super().__init__()
         self.setObjectName("settingsPage")
         
+        # 스크롤 기능 추가
         self.scroll_area = QScrollArea(self)
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.scroll_area.setObjectName("settingsScrollArea")
+        self.scroll_area.setObjectName("settingsScrollArea") # CSS 적용을 위함
 
+        # 스크롤될 실제 콘텐츠 위젯
         self.content_widget = QWidget()
         self.content_layout = QVBoxLayout(self.content_widget)
         self.content_layout.setContentsMargins(25, 20, 25, 20)
@@ -75,6 +79,7 @@ class SettingsPage(QWidget):
         
         self.scroll_area.setWidget(self.content_widget)
         
+        # 메인 레이아웃 설정
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.addWidget(self.scroll_area)
@@ -113,11 +118,13 @@ class SettingsCard(QFrame):
         self.layout.setContentsMargins(20, 15, 20, 15)
         self.layout.setSpacing(10)
 
-        self.title_label = QLabel(f"<b>{title}</b>")
+        self.title_label = QLabel(title)
+        self.title_label.setObjectName("cardTitleLabel") # CSS 적용을 위함
         self.layout.addWidget(self.title_label)
 
         if description:
             self.desc_label = DescriptionLabel(description)
+            self.desc_label.setObjectName("cardDescriptionLabel") # CSS 적용을 위함
             self.layout.addWidget(self.desc_label)
 
     def add_widget(self, widget):
