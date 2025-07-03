@@ -23,8 +23,11 @@ class ConfigManager:
         if getattr(sys, 'frozen', False):
             base_path = os.path.dirname(sys.executable)
         else:
-            base_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..')
-
+            # 스크립트 파일의 위치를 기준으로 프로젝트 루트를 찾습니다.
+            # (__file__ -> .../ariel_client/src/utils/config_manager.py)
+            # -> os.path.dirname() 3번 -> .../ariel_client/
+            base_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            
         self.file_path = os.path.join(base_path, file_name)
         self.config = self.load_config()
 
@@ -35,17 +38,33 @@ class ConfigManager:
             "server_url": "http://127.0.0.1:8000",
             "deepl_api_key": "",
 
-            "source_languages": ["en-US"], # 원본 언어
-            "target_languages": ["KO"],    # 번역할 대상 언어
+            "source_languages": ["EN-US"], # 원본 언어 (DeepL 호환 코드)
+            "target_languages": ["KO"],    # 번역할 대상 언어 (DeepL 호환 코드)
 
             # --- [신규] 프로그램 설정 ---
             "app_theme": "dark",  # dark, light, custom
             "app_language": "system",  # system, ko, en, ja 등
+            
+            # [수정됨] 블루 톤 커스텀 테마 색상을 기본값으로 설정
             "custom_theme_colors": {
-                "background": "#2c3e50",
-                "text": "#ecf0f1",
-                "primary": "#3498db",
-                "secondary": "#2980b9"
+                # 배경색
+                "BACKGROUND_PRIMARY": "#1e2b37",        # 가장 어두운 배경 (창 자체)
+                "BACKGROUND_SECONDARY": "#283747",      # 중간 배경 (네비게이션, 카드)
+                "BACKGROUND_TERTIARY": "#212f3c",       # 콘텐츠 영역 배경
+                
+                # 텍스트색
+                "TEXT_PRIMARY": "#eaf2f8",              # 기본 텍스트
+                "TEXT_HEADER": "#ffffff",               # 헤더/타이틀
+                "TEXT_MUTED": "#85929e",                # 설명 등 흐린 텍스트
+                
+                # 상호작용 요소
+                "INTERACTIVE_NORMAL": "#546e7a",        # 일반 버튼 배경
+                "INTERACTIVE_HOVER": "#607d8b",         # 일반 버튼 호버
+                "INTERACTIVE_ACCENT": "#3498db",        # 포인트 버튼, 포커스 테두리
+                "INTERACTIVE_ACCENT_HOVER": "#5dade2",  # [신규] 포인트 버튼 호버
+                
+                # 기타
+                "BORDER_COLOR": "#3c4f62"               # 위젯 테두리
             },
 
             # --- [신규] OCR 설정 ---
@@ -99,7 +118,7 @@ class ConfigManager:
         기존 파일에 누락된 설정 키가 있으면 기본값으로 채워줍니다.
         """
         if not os.path.exists(self.file_path):
-            logging.info("설정 파일이 없어 새로 생성합니다.")
+            logging.info("설정 파일이 없어 새로 생성합니다: %s", self.file_path)
             new_config = self.get_default_config()
             self.save_config_data(new_config)
             return new_config
@@ -123,20 +142,30 @@ class ConfigManager:
             if "profiles" not in loaded_config:
                  loaded_config["profiles"] = {"기본 프로필": {}}
                  # 기존 설정들을 '기본 프로필'로 이동
-                 for key, value in loaded_config.items():
+                 keys_to_move = list(loaded_config.keys()) # 변경 중 순회를 위해 복사
+                 for key in keys_to_move:
                     if key not in ["profiles", "active_profile", "is_first_run"]:
-                        loaded_config["profiles"]["기본 프로필"][key] = value
+                        loaded_config["profiles"]["기본 프로필"][key] = loaded_config.pop(key)
                  config_updated = True
+                 logging.info("구버전 설정 파일을 새 프로필 구조로 마이그레이션했습니다.")
 
             # 2. 각 프로필 내부의 키 검사 및 추가
             default_profile_keys = self.get_default_profile_settings()
             for profile_name in list(loaded_config.get("profiles", {}).keys()):
+                profile = loaded_config["profiles"][profile_name]
                 for key, value in default_profile_keys.items():
-                    if key not in loaded_config["profiles"][profile_name]:
-                        loaded_config["profiles"][profile_name][key] = value
+                    if key not in profile:
+                        profile[key] = value
                         config_updated = True
                         logging.info(f"프로필 '{profile_name}'에 누락된 키 '{key}'를 추가했습니다.")
-            
+                    # 2-1. 하위 딕셔너리(custom_theme_colors) 내부 키 검사
+                    elif key == "custom_theme_colors" and isinstance(value, dict):
+                        for sub_key, sub_value in value.items():
+                            if sub_key not in profile[key]:
+                                profile[key][sub_key] = sub_value
+                                config_updated = True
+                                logging.info(f"프로필 '{profile_name}'의 '{key}'에 누락된 하위 키 '{sub_key}'를 추가했습니다.")
+
             if config_updated:
                 logging.info("설정 파일이 업데이트되어 새 항목을 추가하고 저장합니다.")
                 self.save_config_data(loaded_config)
@@ -158,12 +187,7 @@ class ConfigManager:
 
     def reset_config(self):
         """설정 파일을 기본값으로 초기화합니다."""
-        if os.path.exists(self.file_path):
-            try:
-                os.remove(self.file_path)
-                logging.info("기존 설정 파일을 삭제했습니다.")
-            except OSError as e:
-                logging.error(f"설정 파일 삭제 실패: {e}")
+        logging.info("모든 설정을 기본값으로 초기화합니다.")
         new_config = self.get_default_config()
         self.save_config_data(new_config)
         return new_config
@@ -175,6 +199,7 @@ class ConfigManager:
         
         # 활성 프로필이 존재하지 않거나, 프로필 목록이 비정상일 경우 복구
         if not profiles:
+            logging.warning("프로필 목록이 비어있어 기본 프로필로 복구합니다.")
             default_settings = self.get_default_profile_settings()
             self.config["profiles"] = {"기본 프로필": default_settings}
             self.config["active_profile"] = "기본 프로필"
@@ -182,10 +207,11 @@ class ConfigManager:
             return default_settings
             
         if active_profile_name not in profiles:
+            logging.warning(f"활성 프로필 '{active_profile_name}'이(가) 존재하지 않아 첫 번째 프로필로 대체합니다.")
             active_profile_name = list(profiles.keys())[0]
             self.set("active_profile", active_profile_name, is_global=True)
             
-        return profiles.get(active_profile_name, {})
+        return profiles.get(active_profile_name, self.get_default_profile_settings())
 
     def get(self, key, default=None):
         """
@@ -212,7 +238,7 @@ class ConfigManager:
             if "profiles" not in self.config:
                 self.config["profiles"] = {}
             if active_profile_name not in self.config["profiles"]:
-                self.config["profiles"][active_profile_name] = {}
+                self.config["profiles"][active_profile_name] = self.get_default_profile_settings()
             
             # 경로 관련 설정은 슬래시로 변환하여 저장
             if isinstance(value, str) and ("sound_" in key or key.endswith("_path")):
@@ -235,17 +261,23 @@ class ConfigManager:
             self.set("active_profile", profile_name, is_global=True)
             logging.info(f"프로필이 '{profile_name}'(으)로 전환되었습니다.")
             return True
+        logging.warning(f"'{profile_name}' 프로필로 전환 실패: 존재하지 않는 프로필입니다.")
         return False
         
-    def add_profile(self, new_profile_name):
+    def add_profile(self, new_profile_name, from_profile=None):
         if new_profile_name in self.config.get("profiles", {}):
             return False, "이미 존재하는 프로필 이름입니다."
         
-        active_profile = self.get_active_profile()
-        new_profile_settings = copy.deepcopy(active_profile)
+        if from_profile and from_profile in self.config.get("profiles", {}):
+            # 지정된 프로필 복사
+            base_profile_settings = self.config["profiles"][from_profile]
+        else:
+            # 기본값으로 생성
+            base_profile_settings = self.get_default_profile_settings()
 
-        self.config["profiles"][new_profile_name] = new_profile_settings
+        self.config["profiles"][new_profile_name] = copy.deepcopy(base_profile_settings)
         self.save_config_data(self.config)
+        logging.info(f"새 프로필 '{new_profile_name}'이(가) 추가되었습니다.")
         return True, "성공"
         
     def remove_profile(self, profile_name):
@@ -259,9 +291,11 @@ class ConfigManager:
         
         if self.config.get("active_profile") == profile_name:
             # 활성 프로필이 삭제되면 다른 프로필을 활성화
-            self.set("active_profile", list(profiles.keys())[0], is_global=True)
+            new_active_profile = list(profiles.keys())[0]
+            self.set("active_profile", new_active_profile, is_global=True)
+            logging.info(f"활성 프로필이었던 '{profile_name}'이(가) 삭제되어, '{new_active_profile}'이(가) 새 활성 프로필이 됩니다.")
         else:
-            self.save_config_data(self.config) # active_profile 변경 없을 시 단순 저장
+            self.save_config_data(self.config)
 
         logging.info(f"프로필 '{profile_name}'이(가) 삭제되었습니다.")
         return True, "성공"

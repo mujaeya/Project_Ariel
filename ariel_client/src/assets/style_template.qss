@@ -1,16 +1,59 @@
-/* 커스텀 테마 템플릿 (개선) */
-QWidget { color: %TEXT_PRIMARY%; }
-SetupWindow, #setupWindow { background-color: %BACKGROUND_PRIMARY%; }
-#navigationBar { background-color: %BACKGROUND_SECONDARY%; border-right: 1px solid %BACKGROUND_TERTIARY%; }
-#navigationBar::item:selected { background-color: %INTERACTIVE_ACCENT%; }
-#navigationBar::item:hover:!selected { background-color: %BACKGROUND_TERTIARY%; }
-#settingsPage { background-color: %BACKGROUND_TERTIARY%; }
-#titleLabel { color: %TEXT_HEADER%; font-size: 24px; font-weight: bold; }
-#descriptionLabel, #cardDescriptionLabel { color: %TEXT_MUTED%; }
-#settingsCard { background-color: %BACKGROUND_SECONDARY%; border: 1px solid %BACKGROUND_PRIMARY%; border-radius: 8px; }
-#cardTitleLabel { font-weight: bold; color: %TEXT_NORMAL%; }
-QPushButton { background-color: %INTERACTIVE_NORMAL%; border: none; border-radius: 5px; padding: 8px 15px; }
-QPushButton:hover { background-color: %INTERACTIVE_HOVER%; }
-QPushButton:pressed { background-color: %INTERACTIVE_PRESSED%; }
-QPushButton#primaryButton { background-color: %INTERACTIVE_ACCENT%; color: #FFFFFF; font-weight: bold; }
-/* ... (이하 생략) ... */
+/*
+ * ========================================
+ * Ariel - Custom Theme (v2.1 - Final)
+ * ========================================
+ */
+
+/* --- 기본 창 및 레이아웃 --- */
+QWidget#setupWindow { background-color: %BACKGROUND_PRIMARY%; color: %TEXT_PRIMARY%; font-family: "Malgun Gothic", sans-serif; }
+QWidget#contentWidget { background-color: %BACKGROUND_TERTIARY%; }
+QListWidget#navigationBar { background-color: %BACKGROUND_SECONDARY%; border: none; }
+QWidget#settingsPage, QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; border: none; }
+
+/* --- 라벨 --- */
+QLabel { color: %TEXT_PRIMARY%; background: transparent; }
+QLabel#titleLabel { font-size: 22pt; font-weight: 600; color: %TEXT_HEADER%; padding-bottom: 5px; }
+QLabel#descriptionLabel { color: %TEXT_MUTED%; font-size: 10pt; padding-bottom: 20px; }
+QLabel#cardTitleLabel { font-size: 13pt; font-weight: bold; color: %TEXT_HEADER%; }
+QLabel#cardDescriptionLabel { color: %TEXT_MUTED%; font-size: 9pt; }
+
+/* --- 설정 카드 --- */
+QWidget#settingsCard { background-color: %BACKGROUND_SECONDARY%; border: 1px solid %BACKGROUND_PRIMARY%; border-radius: 8px; padding: 15px; }
+
+/* --- 입력 위젯 --- */
+QLineEdit, QKeySequenceEdit { padding: 8px; background-color: %BACKGROUND_PRIMARY%; color: %TEXT_PRIMARY%; border: 1px solid rgba(0,0,0,0.1); border-radius: 4px; min-height: 20px; }
+QLineEdit:focus, QKeySequenceEdit:focus { border: 1px solid %INTERACTIVE_ACCENT%; }
+
+/* --- QComboBox (수정) --- */
+QComboBox { padding: 8px; background-color: %BACKGROUND_PRIMARY%; color: %TEXT_PRIMARY%; border: 1px solid rgba(0,0,0,0.1); border-radius: 4px; min-height: 20px; }
+QComboBox:focus { border: 1px solid %INTERACTIVE_ACCENT%; }
+QComboBox::drop-down { border: none; }
+QComboBox::down-arrow { image: url(%ASSET_PATH%/icons/chevron_down_dark.svg); width: 14px; height: 14px; }
+QComboBox QAbstractItemView {
+    background-color: %BACKGROUND_SECONDARY%;
+    color: %TEXT_PRIMARY%; /* 드롭다운 텍스트 색상 수정 */
+    border: 1px solid %BACKGROUND_PRIMARY%;
+    selection-background-color: %INTERACTIVE_ACCENT%;
+    selection-color: #ffffff; /* 선택 시 텍스트 색상 명시 */
+}
+
+/* --- QSpinBox (수정) --- */
+QSpinBox { padding: 8px; padding-right: 22px; background-color: %BACKGROUND_PRIMARY%; color: %TEXT_PRIMARY%; border: 1px solid rgba(0,0,0,0.1); border-radius: 4px; min-height: 20px; }
+QSpinBox:focus { border: 1px solid %INTERACTIVE_ACCENT%; }
+QSpinBox::up-button, QSpinBox::down-button { subcontrol-origin: border; width: 18px; border: none; }
+QSpinBox::up-button { subcontrol-position: top right; margin-right: 3px; image: url(%ASSET_PATH%/icons/chevron_up_dark.svg); }
+QSpinBox::down-button { subcontrol-position: bottom right; margin-right: 3px; image: url(%ASSET_PATH%/icons/chevron_down_dark.svg); }
+QSpinBox::up-button:hover, QSpinBox::down-button:hover { background-color: rgba(255,255,255,0.1); border-radius: 2px; }
+
+/* --- 버튼 --- */
+QPushButton { min-height: 20px; padding: 8px 16px; background-color: %INTERACTIVE_NORMAL%; color: %TEXT_PRIMARY%; border: none; border-radius: 4px; font-weight: 500; }
+QPushButton:hover {
+    background-color: %INTERACTIVE_HOVER%; /* hover 전용 색상 플레이스홀더 사용 */
+}
+QPushButton#primaryButton {
+    background-color: %INTERACTIVE_ACCENT%;
+    color: #ffffff;
+}
+QPushButton#primaryButton:hover {
+    background-color: %INTERACTIVE_ACCENT_HOVER%; /* 포인트 버튼 hover 전용 색상 플레이스홀더 사용 */
+}
