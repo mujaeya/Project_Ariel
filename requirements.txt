@@ -1,0 +1,29 @@
+# GUI Framework
+PySide6
+
+# System Control & Monitoring
+pynput
+mss
+opencv-python-headless
+
+# Audio Processing
+sounddevice
+webrtcvad
+numpy
+
+# API Communication & Backend
+fastapi
+uvicorn
+python-multipart
+requests
+deepl
+
+# AI/ML Services (Backend)
+openai
+pytesseract
+
+# (Optional) For Tesseract on Windows, you might need to install it separately.
+# https://github.com/tesseract-ocr/tessdoc
+
+# For loading environment variables
+python-dotenv

@@ -57,3 +57,37 @@ QPushButton#primaryButton {
 QPushButton#primaryButton:hover {
     background-color: %INTERACTIVE_ACCENT_HOVER%; /* 포인트 버튼 hover 전용 색상 플레이스홀더 사용 */
 }
+
+/*
+ * ========================================
+ * [추가] 대화상자 (QMessageBox)
+ * ========================================
+ */
+QMessageBox {
+    background-color: %BACKGROUND_SECONDARY%; /* 배경색 변수 사용 */
+}
+
+QMessageBox QLabel {
+    color: %TEXT_PRIMARY%; /* 텍스트 색상 변수 사용 */
+    background-color: transparent;
+}
+
+QMessageBox QPushButton {
+    min-width: 70px;
+    min-height: 20px;
+    padding: 8px 16px;
+    background-color: %INTERACTIVE_NORMAL%;
+    color: %TEXT_PRIMARY%;
+    border: none;
+    border-radius: 4px;
+    font-weight: 500;
+}
+
+QMessageBox QPushButton:hover {
+    background-color: %INTERACTIVE_HOVER%;
+}
+
+QMessageBox QPushButton:default {
+    background-color: %INTERACTIVE_ACCENT%; /* 포인트 색상 변수 사용 */
+    color: #ffffff;
+}

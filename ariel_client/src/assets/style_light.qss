@@ -50,3 +50,37 @@ QPushButton { min-height: 20px; padding: 8px 16px; background-color: #d8dade; co
 QPushButton:hover { background-color: #c9cdd1; }
 QPushButton#primaryButton { background-color: #0056b3; color: #ffffff; }
 QPushButton#primaryButton:hover { background-color: #004f9e; }
+
+/*
+ * =====================================
+ * [추가] 대화상자 (QMessageBox)
+ * =====================================
+ */
+QMessageBox {
+    background-color: #f2f3f5; /* 밝은 배경색 지정 */
+}
+
+QMessageBox QLabel {
+    color: #2e3338; /* 텍스트 색상 지정 */
+    background-color: transparent;
+}
+
+QMessageBox QPushButton {
+    min-width: 70px; /* 버튼 최소 너비 */
+    min-height: 20px;
+    padding: 8px 16px;
+    background-color: #d8dade;
+    color: #2e3338;
+    border: none;
+    border-radius: 4px;
+    font-weight: 500;
+}
+
+QMessageBox QPushButton:hover {
+    background-color: #c9cdd1;
+}
+
+QMessageBox QPushButton:default {
+    background-color: #0056b3; /* 'Yes' 같은 기본 선택 버튼 */
+    color: #ffffff;
+}
