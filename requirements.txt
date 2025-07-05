@@ -1,29 +1,41 @@
-# GUI Framework
+# ===================================================================
+# Project Ariel - Client Requirements
+# 최종 수정일: 2025-07-04
+# 주석: pycaw/sounddevice의 불안정성 문제를 해결하기 위해
+#       오디오 처리 스택을 soundcard 기반으로 전면 개편함.
+# ===================================================================
+
+# [필수] GUI 프레임워크 (GUI Framework)
 PySide6
 
-# System Control & Monitoring
+# [필수] 시스템 제어 및 화면 캡처 (System Control & Screen Capture)
 pynput
 mss
 opencv-python-headless
 
-# Audio Processing
-sounddevice
-webrtcvad
-numpy
+# [필수] 신규 오디오 처리 스택 (New Audio Processing Stack)
+# -------------------------------------------------------------------
+pyaudio 
+webrtcvad-wheels         # 음성 구간 감지 (Windows에서 설치 용이성을 위해 -wheels 사용)
+numpy==1.26.4        # soundcard와 webrtcvad 모두에 필요한 숫자 처리 라이브러리
+# -------------------------------------------------------------------
 
-# API Communication & Backend
-fastapi
-uvicorn
-python-multipart
-requests
-deepl
+# [필수] API 통신 (API Communication)
+# -------------------------------------------------------------------
+requests                 # DeepL, OpenAI 등 외부 API 요청에 사용
+deepl                    # DeepL API 공식 라이브러리
+openai                   # OpenAI API 공식 라이브러리
+# -------------------------------------------------------------------
 
-# AI/ML Services (Backend)
-openai
-pytesseract
+# [필수] 환경 변수 로딩 (Environment Variable Loading)
+# -------------------------------------------------------------------
+python-dotenv            # .env 파일에서 API 키 등을 불러오는 데 사용
 
-# (Optional) For Tesseract on Windows, you might need to install it separately.
-# https://github.com/tesseract-ocr/tessdoc
-
-# For loading environment variables
-python-dotenv
+# ===================================================================
+# [백엔드 전용] - 클라이언트 실행 시에는 설치할 필요 없음
+# FastAPI 기반의 로컬 서버를 함께 구동할 경우에만 주석을 해제하세요.
+# ===================================================================
+ fastapi
+ uvicorn
+ python-multipart
+ pytesseract

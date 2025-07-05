@@ -1,58 +1,62 @@
-# ariel_client/src/run_client.py (이 코드로 전체 교체)
+# ariel_client/src/run_client.py (최종 완성본)
 import sys
 import os
 import logging
 
-# [수정] 상대 경로로 import
-from .utils import resource_path
-
 def setup_logging():
-    """애플리케이션의 로깅 시스템을 설정합니다."""
-    # 로그 폴더 경로 설정 (상대 경로 유틸리티 사용)
+    # 이 함수는 변경할 필요 없습니다.
+    # ... (기존 setup_logging 코드 그대로)
+    from .utils import resource_path
     log_dir = resource_path(os.path.join('..', 'logs'))
     os.makedirs(log_dir, exist_ok=True)
     log_file = os.path.join(log_dir, 'ariel_app.log')
-
     logging.basicConfig(
         level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s',
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         handlers=[
             logging.FileHandler(log_file, encoding='utf-8'),
-            logging.StreamHandler(sys.stdout) # 로그가 콘솔에도 출력되도록 수정
+            logging.StreamHandler(sys.stdout)
         ]
     )
     logging.info("로깅 시스템 초기화 완료.")
 
-# --- 모듈 Import (필요한 것만) ---
-from PySide6.QtWidgets import QApplication, QMessageBox, QSystemTrayIcon
-from PySide6.QtCore import QTimer
-
-# [수정] 상대 경로로 import
-from .config_manager import ConfigManager
-from .gui.tray_icon import TrayIcon
-
 def main():
     """애플리케이션 메인 진입점"""
-    # 로깅 설정은 main 함수 안에서 호출하는 것이 더 안정적입니다.
     setup_logging()
 
+    # --- [최후의 해결책] ---
+    # PySide6 관련 모듈(TrayIcon)을 임포트하기 전에,
+    # 문제가 되는 audio_processor 모듈을 강제로 먼저 임포트하여
+    # pycaw가 시스템 환경을 선점하도록 합니다.
+    try:
+        from .core import audio_processor
+        logging.getLogger(__name__).info("초기화 충돌 방지를 위해 audio_processor를 선제적으로 로드했습니다.")
+    except Exception as e:
+        logging.getLogger(__name__).critical(f"audio_processor 선제적 로드 실패: {e}", exc_info=True)
+        # 이 단계에서 실패하면 더 이상 진행할 수 없으므로 종료합니다.
+        return
+    # --- [수정 끝] ---
+
+    # 이제 나머지 모듈들을 임포트합니다.
+    from PySide6.QtWidgets import QApplication, QMessageBox, QSystemTrayIcon
+    from .config_manager import ConfigManager
+    from .gui.tray_icon import TrayIcon
+    from .utils import resource_path
+    
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
 
     if not QSystemTrayIcon.isSystemTrayAvailable():
         logging.critical("시스템 트레이를 사용할 수 없어 프로그램을 시작할 수 없습니다.")
-        QMessageBox.critical(None, "오류", "시스템 트레이를 사용할 수 없습니다.")
         return
 
-    # 설정 및 트레이 아이콘 생성
     try:
         config_manager = ConfigManager()
-        # assets 폴더는 src 폴더와 같은 레벨에 있어야 함
         icon_path = resource_path(os.path.join('assets', 'ariel_icon.ico'))
+        # audio_processor는 이미 임포트되었으므로 TrayIcon은 캐시된 모듈을 사용합니다.
         tray_icon = TrayIcon(config_manager, icon_path, app)
     except Exception as e:
         logging.critical(f"애플리케이션 초기화 실패: {e}", exc_info=True)
-        QMessageBox.critical(None, "초기화 오류", f"프로그램 시작 중 오류가 발생했습니다:\n{e}")
         return
         
     logging.info("Ariel 클라이언트 이벤트 루프 시작.")

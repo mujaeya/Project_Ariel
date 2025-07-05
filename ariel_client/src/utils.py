@@ -1,7 +1,8 @@
 # ariel_client/src/utils.py (새 파일)
 import sys
 import os
-
+import logging
+logging.getLogger(__name__).info(f"--- [모듈 로딩] {__name__} 파일이 로드됩니다. ---")
 def resource_path(relative_path):
     """ Get absolute path to resource, works for dev and for PyInstaller/Nuitka """
     try:

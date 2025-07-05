@@ -3,6 +3,7 @@ import os
 import sys
 import copy
 import logging
+logging.getLogger(__name__).info(f"--- [모듈 로딩] {__name__} 파일이 로드됩니다. ---")
 
 # setup_window.py와 중복되므로 한 곳(예: utils.py)으로 옮기는 것을 권장합니다.
 # 우선은 여기에 임시로 유지합니다.

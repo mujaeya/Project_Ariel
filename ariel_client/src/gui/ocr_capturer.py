@@ -9,8 +9,9 @@ class OcrCapturer(QWidget):
     region_selected = Signal(QRect)
     # [버그 수정] 창이 닫힐 때 발생하는 시그널을 명시적으로 정의합니다.
     finished = Signal()
+    cancelled = Signal()
 
-    def __init__(self):
+    def __init__(self, parent=None):
         super().__init__()
         # 모든 모니터를 포함하는 가상 데스크톱의 전체 크기를 가져옵니다.
         geometry = QGuiApplication.primaryScreen().virtualGeometry()
@@ -23,9 +24,11 @@ class OcrCapturer(QWidget):
         self.end_point = None
 
     def keyPressEvent(self, event):
-        # ESC 키를 누르면 캡처를 취소하고 창을 닫습니다.
         if event.key() == Qt.Key.Key_Escape:
+            logger.info("OCR 캡처가 사용자에 의해 취소되었습니다.")
+            self.cancelled.emit() # 취소 시그널 발생
             self.close()
+        super().keyPressEvent(event)
 
     def mousePressEvent(self, event):
         self.start_point = event.position().toPoint()
@@ -57,6 +60,7 @@ class OcrCapturer(QWidget):
             painter.drawRect(selection_rect)
 
     def closeEvent(self, event):
-        """창이 닫힐 때 'finished' 시그널을 발생시킵니다."""
-        self.finished.emit()
+        # 영역이 선택되지 않은 상태에서 창이 닫히면 취소로 간주
+        if not self.end_pos: # end_pos가 설정되지 않았다면 선택이 완료되지 않은 것
+             self.cancelled.emit()
         super().closeEvent(event)
