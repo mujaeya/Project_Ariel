@@ -1,4 +1,4 @@
-# F:/projects/Project_Ariel/ariel_client/src/core/audio_processor.py (최종 완성본)
+# F:/projects/Project_Ariel/ariel_client/src/core/audio_processor.py (최종 완성 및 배포 가능 버전)
 
 import pyaudio
 import webrtcvad
@@ -9,9 +9,8 @@ logger = logging.getLogger(__name__)
 
 class AudioProcessor(QObject):
     """
-    PyAudio와 WASAPI를 직접 사용하여 시스템 오디오를 안정적으로 캡처하고,
-    webrtcvad로 음성 구간을 감지하여 처리하는 최종 오디오 프로세서.
-    [OSError -9996] 문제를 회피하도록 장치 탐색 로직을 강화했습니다.
+    [최종 안정화] 자동 샘플 레이트 협상 기능을 추가하여 모든 사용자 환경에 대응하는
+    범용 WASAPI 루프백 오디오 프로세서.
     """
     audio_chunk_ready = Signal(bytes)
     stopped = Signal()
@@ -25,144 +24,153 @@ class AudioProcessor(QObject):
         self.p = None
         self.stream = None
         
-        # VAD 설정
         self.vad = webrtcvad.Vad(self.config.get("vad_sensitivity", 3))
-        self.sample_rate = 16000
-        self.chunk_duration_ms = 30
-        self.chunk_size = int(self.sample_rate * self.chunk_duration_ms / 1000)
+        # VAD가 지원하는 샘플 레이트 목록 (선호도 순)
+        self.SUPPORTED_RATES = [16000, 48000, 32000, 8000]
         
+        # 실제 적용될 값들 (초기값)
+        self.sample_rate = 16000
+        self.chunk_duration_ms = 30 # VAD는 10, 20, 30ms 조각만 지원
+        self.chunk_size = 0 # 실제 샘플 레이트에 따라 결정됨
+        self.channels = 0 # 스트림의 실제 채널 수
+
         self.silence_threshold_s = self.config.get("silence_threshold_s", 1.0)
         self.min_audio_length_s = self.config.get("min_audio_length_s", 0.5)
         logger.info("AudioProcessor (PyAudio/VAD/Robust) 초기화 완료.")
 
     def _find_wasapi_loopback_device(self):
-        """
-        [수정됨] 모든 장치를 순회하여 WASAPI 루프백 장치를 찾는 더욱 견고한 방식.
-        """
         try:
             self.p = pyaudio.PyAudio()
             wasapi_info = self.p.get_host_api_info_by_type(pyaudio.paWASAPI)
-            
-            # 1. 윈도우의 기본 출력 장치를 찾습니다.
-            # get_default_output_device_info()는 더 안정적입니다.
-            default_output_device_info = self.p.get_default_output_device_info()
-            logger.debug(f"윈도우 기본 출력 장치: {default_output_device_info['name']}")
+            all_wasapi_devices = [self.p.get_device_info_by_index(i) for i in range(self.p.get_device_count()) if self.p.get_device_info_by_index(i).get('hostApi') == wasapi_info['index']]
 
-            # 2. 모든 장치를 순회하며 조건에 맞는 루프백 장치를 찾습니다.
-            for i in range(self.p.get_device_count()):
-                dev = self.p.get_device_info_by_index(i)
-                
-                # 조건 1: WASAPI 호스트 API에 속해 있는가?
-                # 조건 2: 루프백 장치인가?
-                # 조건 3: 이름이 기본 출력 장치의 이름으로 시작하는가? (예: "스피커 (Realtek..)" 와 "루프백 (스피커 (Realtek..))")
-                if (dev.get('hostApi') == wasapi_info['index'] and 
-                    dev.get('isLoopbackDevice') and 
-                    dev.get('name').startswith(default_output_device_info['name'])):
-                    logger.info(f"✅ PyAudio WASAPI 루프백 장치를 찾았습니다: {dev['name']}")
+            try:
+                default_output = self.p.get_default_output_device_info()
+                logger.info(f"현재 기본 출력 장치: '{default_output['name']}'")
+                for dev in all_wasapi_devices:
+                    if dev['maxInputChannels'] > 0 and default_output['name'] in dev['name']:
+                        logger.info(f"✅ [1단계 성공] 기본 출력 장치와 연관된 루프백 장치: {dev['name']}")
+                        return dev
+            except Exception: pass
+
+            logger.info("1단계 탐색 실패. 'Stereo Mix' 장치를 찾습니다...")
+            for dev in all_wasapi_devices:
+                name_lower = dev['name'].lower()
+                if dev['maxInputChannels'] > 0 and ('stereo mix' in name_lower or '스테레오 믹스' in name_lower):
+                    logger.info(f"✅ [2단계 성공] 'Stereo Mix' 장치: {dev['name']}")
                     return dev
             
-            logger.warning("이름이 일치하는 루프백 장치를 찾지 못했습니다. 다른 루프백 장치를 탐색합니다.")
-            # 만약 이름으로 못찾으면, 그냥 첫번째로 발견되는 루프백 장치를 시도
-            for i in range(self.p.get_device_count()):
-                dev = self.p.get_device_info_by_index(i)
-                if dev.get('hostApi') == wasapi_info['index'] and dev.get('isLoopbackDevice'):
-                    logger.info(f"✅ 대체 루프백 장치를 찾았습니다: {dev['name']}")
-                    return dev
+            logger.info("2단계 탐색 실패. 기본 입력 장치를 확인합니다...")
+            try:
+                default_input = self.p.get_default_input_device_info()
+                logger.info(f"현재 기본 입력 장치: '{default_input['name']}'")
+                name_lower = default_input['name'].lower()
+                if 'mix' in name_lower or '믹스' in name_lower or 'loopback' in name_lower:
+                    for dev in all_wasapi_devices:
+                        if dev['name'] == default_input['name']:
+                            logger.info(f"✅ [3단계 성공] 기본 입력 장치가 루프백: {dev['name']}")
+                            return dev
+            except Exception: pass
 
-            logger.error("시스템에서 유효한 WASAPI 루프백 장치를 찾을 수 없습니다.")
+            logger.error("시스템에서 유효한 WASAPI 루프백 장치를 찾을 수 없습니다. 윈도우 사운드 설정에서 '스테레오 믹스'를 '사용'으로 설정했는지 확인해주세요.")
+            self.status_updated.emit("오디오 장치 없음")
             return None
-
         except Exception as e:
             logger.error(f"오디오 장치 탐색 중 예외 발생: {e}", exc_info=True)
+            self.status_updated.emit("오디오 장치 탐색 오류")
             return None
 
-    # --- start_processing, stop, __del__ 등의 나머지 메서드는 이전과 동일하게 유지 ---
-    # (이전 답변에서 제공한 코드를 그대로 사용하시면 됩니다)
     @Slot()
     def start_processing(self):
         device_info = self._find_wasapi_loopback_device()
         if not device_info:
-            self.status_updated.emit("오디오 장치 없음")
             self.stop()
             return
 
+        # --- [핵심 수정] 자동 샘플 레이트 협상 로직 ---
+        supported_rate = None
+        for rate in self.SUPPORTED_RATES:
+            try:
+                if self.p.is_format_supported(rate, input_device=device_info['index'], input_channels=device_info['maxInputChannels'], input_format=pyaudio.paInt16):
+                    supported_rate = rate
+                    logger.info(f"✅ 오디오 장치가 {rate}Hz 샘플링을 지원합니다. 이 설정으로 진행합니다.")
+                    break
+            except ValueError:
+                continue
+        
+        if not supported_rate:
+            logger.error(f"오디오 장치 '{device_info['name']}'가 VAD가 요구하는 샘플 레이트({self.SUPPORTED_RATES})를 지원하지 않습니다.")
+            self.status_updated.emit("지원되지 않는 오디오 장치")
+            self.stop()
+            return
+
+        # 협상된 샘플 레이트로 VAD 관련 변수 업데이트
+        self.sample_rate = supported_rate
+        self.chunk_size = int(self.sample_rate * self.chunk_duration_ms / 1000)
+        # ---------------------------------------------
+
         try:
-            # 채널 수를 명시적으로 2로 시도해볼 수 있음. 대부분의 루프백은 스테레오.
-            channels = device_info.get('maxInputChannels', 2)
+            # [핵심 수정] 이 변수에 실제 채널 수를 저장합니다.
+            self.channels = device_info.get('maxInputChannels', 2)
             self.stream = self.p.open(
                 format=pyaudio.paInt16,
-                channels=channels,
-                rate=self.sample_rate,
+                channels=self.channels, # 변수 사용
+                rate=self.sample_rate, # 협상된 샘플 레이트 사용
                 input=True,
                 frames_per_buffer=self.chunk_size,
                 input_device_index=device_info['index']
             )
         except Exception as e:
             logger.error(f"PyAudio 스트림 시작 오류: {e}", exc_info=True)
-            self.status_updated.emit("오디오 장치 오류")
+            self.status_updated.emit("오디오 장치 열기 실패")
             self.stop()
             return
             
         self._is_running = True
-        voiced_frames = []
-        silence_counter = 0
-
+        voiced_frames, silence_counter = [], 0
         self.status_updated.emit("음성 듣는 중...")
-        logger.info(f"오디오 스트림 시작 (장치: {device_info['name']})")
+        logger.info(f"오디오 스트림 시작 (장치: {device_info['name']}, 샘플링: {self.sample_rate}Hz, 채널: {self.channels})")
         
         while self._is_running:
             try:
-                frame = self.stream.read(self.chunk_size, exception_on_overflow=False)
+                frame_data = self.stream.read(self.chunk_size, exception_on_overflow=False)
                 
-                is_speech = self.vad.is_speech(frame, self.sample_rate)
-
-                if is_speech:
-                    voiced_frames.append(frame)
+                # [핵심 수정] 채널 수에 따라 명확하게 모노로 변환합니다.
+                mono_frame = frame_data
+                if self.channels == 2:
+                    mono_frame = frame_data[::2]
+                
+                if self.vad.is_speech(mono_frame, self.sample_rate):
+                    voiced_frames.append(mono_frame)
                     silence_counter = 0
                 else:
                     silence_counter += 1
                 
                 silence_duration_s = (silence_counter * self.chunk_duration_ms) / 1000.0
-                
                 if voiced_frames and silence_duration_s > self.silence_threshold_s:
                     audio_data = b''.join(voiced_frames)
-                    audio_duration_s = len(audio_data) / (self.sample_rate * channels * 2) # 채널 수 반영
-                    
+                    audio_duration_s = len(audio_data) / (self.sample_rate * 2) # 모노(2bytes/sample) 기준
                     if audio_duration_s >= self.min_audio_length_s:
-                        logger.info(f"문장 감지 완료. 오디오 처리 시작 (길이: {audio_duration_s:.2f}s)")
                         self.audio_chunk_ready.emit(audio_data)
-                    else:
-                        logger.info(f"녹음된 오디오가 너무 짧아({audio_duration_s:.2f}s) 무시합니다.")
-
-                    voiced_frames = []
-                    silence_counter = 0
+                    voiced_frames, silence_counter = [], 0
             except IOError as e:
                 logger.error(f"오디오 스트림 읽기 오류: {e}")
                 self.status_updated.emit("오디오 장치 연결 끊김")
                 self._is_running = False
         
-        logger.info("오디오 처리 루프가 종료되었습니다.")
         self.stop()
 
     @Slot()
     def stop(self):
-        if not self._is_running and not self.stream:
-            if not self.p: # PyAudio 객체가 이미 종료된 경우
-                self.finished.emit()
-                return
-            
+        if not self._is_running and self.stream is None and self.p is None: return
         self._is_running = False
-        
         if self.stream:
-            self.stream.stop_stream()
+            if self.stream.is_active(): self.stream.stop_stream()
             self.stream.close()
             self.stream = None
-            
         if self.p:
             self.p.terminate()
             self.p = None
-        
-        logger.info("오디오 리소스가 안전하게 정리되었습니다.")
         self.stopped.emit()
         self.finished.emit()
 

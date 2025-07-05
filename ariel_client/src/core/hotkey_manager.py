@@ -1,10 +1,14 @@
+# F:/projects/Project_Ariel/ariel_client/src/core/hotkey_manager.py
+
 import logging
 from pynput import keyboard
 from PySide6.QtCore import QObject, Signal
 
+logger = logging.getLogger(__name__)
+
 class HotkeyManager(QObject):
     """
-    pynput.keyboard.Listener를 사용하여 전역 단축키를 관리하는 클래스.
+    pynput을 사용하여 전역 단축키를 관리하는 클래스.
     설정된 단축키 문자열을 pynput 형식으로 변환하여 안정적으로 등록합니다.
     """
     hotkey_pressed = Signal(str)
@@ -15,33 +19,24 @@ class HotkeyManager(QObject):
         self.hotkeys = {}
         self.listener = None
         self.load_hotkeys()
-        self.start()
 
     def _to_pynput_format(self, hotkey_str: str) -> str:
         """
         [핵심 수정] 'alt+1' 같은 문자열을 '<alt>+1' 형식으로 변환합니다.
         pynput이 특수 키를 인식할 수 있도록 돕습니다.
         """
-        # pynput에서 특수 키로 취급하는 키들의 목록
-        special_keys = {
-            'ctrl', 'alt', 'shift', 'cmd', 'win', 'command',
-            'esc', 'space', 'enter', 'tab', 'backspace', 'delete', 'insert',
-            'home', 'end', 'page_up', 'page_down', 'up', 'down', 'left', 'right',
-            'caps_lock', 'scroll_lock', 'num_lock', 'print_screen'
-        }
-        # F1 ~ F24 키 추가
-        for i in range(1, 25):
-            special_keys.add(f'f{i}')
-
         parts = hotkey_str.lower().split('+')
+        # pynput은 조합키(modifier)를 꺾쇠로 감싸줘야 합니다.
+        # 예: 'alt', 'ctrl', 'shift', 'cmd' (macOS의 command 키)
+        modifiers = {'alt', 'ctrl', 'shift', 'cmd', 'win'}
+        
         formatted_parts = []
         for part in parts:
             part = part.strip()
-            if part in special_keys:
-                # 특수 키는 꺾쇠로 감쌉니다.
+            if part in modifiers:
                 formatted_parts.append(f"<{part}>")
             else:
-                # 일반 키는 그대로 둡니다.
+                # 일반 키(a, b, 1, 2, f1, 등)는 그대로 사용합니다.
                 formatted_parts.append(part)
         
         return '+'.join(formatted_parts)
@@ -50,30 +45,37 @@ class HotkeyManager(QObject):
         """설정 파일에서 단축키를 불러옵니다."""
         profile = self.config_manager.get_active_profile()
         self.hotkeys.clear()
+        
+        # hotkey_ 접두사가 붙은 모든 키를 동적으로 로드합니다.
         for key, value in profile.items():
             if key.startswith("hotkey_") and isinstance(value, str) and value:
-                action_name = key.replace("hotkey_", "")
+                # 'hotkey_toggle_stt' -> 'toggle_stt'
+                action_name = key.replace("hotkey_", "") 
                 self.hotkeys[value.lower()] = action_name
+        
         logging.info(f"단축키 로드 완료: {self.hotkeys}")
+        logger.info(f"단축키 로드 완료: {self.hotkeys}")
 
-    def on_activate_factory(self, action):
-        """콜백 함수에 전달할 action 값을 고정시키기 위한 팩토리 함수."""
+    def on_activate_factory(self, action: str):
+        """클로저 문제를 피하고, 각 단축키에 올바른 액션 이름을 전달하기 위한 팩토리 함수."""
         def on_activate():
+            logging.info(f"단축키 [{action}] 눌림 감지!")
             self.hotkey_pressed.emit(action)
         return on_activate
 
     def start(self):
         """단축키 리스너를 시작합니다."""
         if self.listener is not None:
+            logging.warning("기존 단축키 리스너가 실행 중이므로 중지하고 다시 시작합니다.")
             self.stop()
 
         hotkey_map = {}
         for hotkey_str, action in self.hotkeys.items():
             try:
-                # [핵심 수정] pynput 형식으로 변환 후 파싱
-                pynput_formatted_str = self._to_pynput_format(hotkey_str)
-                key_combination = frozenset(keyboard.HotKey.parse(pynput_formatted_str))
-                hotkey_map[key_combination] = self.on_activate_factory(action)
+                # [핵심 수정] pynput 형식으로 변환 후 HotKey 객체 생성
+                pynput_str = self._to_pynput_format(hotkey_str)
+                # GlobalHotKeys는 {단축키_문자열: 콜백_함수} 형태의 딕셔너리를 인자로 받습니다.
+                hotkey_map[pynput_str] = self.on_activate_factory(action)
             except Exception as e:
                 logging.warning(f"잘못된 단축키 형식 '{hotkey_str}'을(를) 무시합니다. 오류: {e}")
 
@@ -82,16 +84,19 @@ class HotkeyManager(QObject):
             return
 
         try:
-            self.listener = keyboard.Listener(hotkeys=hotkey_map)
+            self.listener = keyboard.GlobalHotKeys(hotkey_map)
             self.listener.start()
             logging.info(f"단축키 리스너 시작. 감시 대상: {list(self.hotkeys.keys())}")
         except Exception as e:
-            logging.error(f"단축키 리스너 시작 중 예측하지 못한 오류 발생: {e}")
+            # 보통 다른 프로그램이 단축키를 선점했을 때 발생 (관리자 권한으로 실행 시도)
+            logging.error(f"단축키 리스너 시작 중 예측하지 못한 오류 발생: {e}. 다른 프로그램이 단축키를 사용 중일 수 있습니다.", exc_info=True)
 
     def stop(self):
         """단축키 리스너를 안전하게 중지합니다."""
         if self.listener:
             self.listener.stop()
+            # GlobalHotKeys는 백그라운드 스레드이므로 join()으로 종료를 기다리는 것이 더 안전합니다.
+            self.listener.join()
             self.listener = None
             logging.info("단축키 리스너 중지됨.")
 
