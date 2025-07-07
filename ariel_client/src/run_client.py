@@ -1,66 +1,71 @@
-# ariel_client/src/run_client.py (최종 완성본)
 import sys
-import os
 import logging
+from logging.config import dictConfig
+import ctypes
 
-def setup_logging():
-    # 이 함수는 변경할 필요 없습니다.
-    # ... (기존 setup_logging 코드 그대로)
-    from .utils import resource_path
-    log_dir = resource_path(os.path.join('..', 'logs'))
-    os.makedirs(log_dir, exist_ok=True)
-    log_file = os.path.join(log_dir, 'ariel_app.log')
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler(log_file, encoding='utf-8'),
-            logging.StreamHandler(sys.stdout)
-        ]
-    )
-    logging.info("로깅 시스템 초기화 완료.")
+from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QTranslator, QLocale, QLibraryInfo
+
+# 상대 경로 임포트
+from .utils import resource_path, setup_logging
+from .config_manager import ConfigManager
+from .gui.tray_icon import TrayIcon
+
+# [수정] 오디오 프로세서 선제적 로드 (기존 코드 유지)
+try:
+    from .core.audio_processor import AudioProcessor
+    logging.info("초기화 충돌 방지를 위해 audio_processor를 선제적으로 로드했습니다.")
+except ImportError as e:
+    logging.error(f"Audio processor 로드 실패: {e}")
+    # 필요한 경우 사용자에게 알림
+# ... (중간 생략) ...
 
 def main():
-    """애플리케이션 메인 진입점"""
-    setup_logging()
-
-    # --- [최후의 해결책] ---
-    # PySide6 관련 모듈(TrayIcon)을 임포트하기 전에,
-    # 문제가 되는 audio_processor 모듈을 강제로 먼저 임포트하여
-    # pycaw가 시스템 환경을 선점하도록 합니다.
+    # Windows에서 DPI 인식 및 작업 표시줄 아이콘 해상도 문제 해결
     try:
-        from .core import audio_processor
-        logging.getLogger(__name__).info("초기화 충돌 방지를 위해 audio_processor를 선제적으로 로드했습니다.")
+        ctypes.windll.shcore.SetProcessDpiAwareness(1)
+        myappid = 'mycompany.myproduct.subproduct.version'
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     except Exception as e:
-        logging.getLogger(__name__).critical(f"audio_processor 선제적 로드 실패: {e}", exc_info=True)
-        # 이 단계에서 실패하면 더 이상 진행할 수 없으므로 종료합니다.
-        return
-    # --- [수정 끝] ---
+        logging.warning(f"DPI 또는 AppUserModelID 설정 실패: {e}")
 
-    # 이제 나머지 모듈들을 임포트합니다.
-    from PySide6.QtWidgets import QApplication, QMessageBox, QSystemTrayIcon
-    from .config_manager import ConfigManager
-    from .gui.tray_icon import TrayIcon
-    from .utils import resource_path
-    
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
 
-    if not QSystemTrayIcon.isSystemTrayAvailable():
-        logging.critical("시스템 트레이를 사용할 수 없어 프로그램을 시작할 수 없습니다.")
-        return
+    setup_logging()
+    
+    config_manager = ConfigManager()
+
+    # --- [신규] 다국어(i18n) 지원 로직 ---
+    translator = QTranslator(app)
+    
+    # 설정된 언어 또는 시스템 언어 가져오기
+    lang_code = config_manager.get('app_language', QLocale.system().name().split('_')[0]) # 'ko_KR' -> 'ko'
+    
+    # Qt 기본 번역 로드 (예: 'OK', 'Cancel' 버튼 등)
+    qt_translator = QTranslator(app)
+    qt_translation_path = QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)
+    if qt_translator.load(QLocale(lang_code), "qtbase", "_", qt_translation_path):
+        app.installTranslator(qt_translator)
+    
+    # 우리 앱의 번역 로드
+    translation_file = resource_path(f'translations/ariel_{lang_code}.qm')
+    if translator.load(translation_file):
+        app.installTranslator(translator)
+        logging.info(f"'{lang_code}' 언어 번역 파일을 로드했습니다.")
+    else:
+        logging.warning(f"'{lang_code}' 언어 번역 파일({translation_file})을 찾을 수 없습니다. 기본 언어(영어)로 실행됩니다.")
+    # --- 다국어 로직 끝 ---
 
     try:
-        config_manager = ConfigManager()
-        icon_path = resource_path(os.path.join('assets', 'ariel_icon.ico'))
-        # audio_processor는 이미 임포트되었으므로 TrayIcon은 캐시된 모듈을 사용합니다.
+        icon_path = resource_path("assets/icons/app_icon.ico")
         tray_icon = TrayIcon(config_manager, icon_path, app)
     except Exception as e:
-        logging.critical(f"애플리케이션 초기화 실패: {e}", exc_info=True)
-        return
-        
+        logging.critical(f"애플리케이션 초기화 중 심각한 오류 발생: {e}", exc_info=True)
+        sys.exit(1)
+    
     logging.info("Ariel 클라이언트 이벤트 루프 시작.")
     sys.exit(app.exec())
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -20,6 +20,7 @@ class ConfigManager:
     def get_default_profile_settings(self):
         """프로필 하나에 들어갈 모든 세부 설정의 기본값을 반환합니다."""
         return {
+            "is_first_run": True,
             # --- [문제 해결] 필수 API 키/URL 기본값만 추가 ---
             "api_base_url": "http://127.0.0.1:8000",
             "deepl_api_key": "",
@@ -28,7 +29,14 @@ class ConfigManager:
             "source_languages": ["EN-US"],
             "target_languages": ["KO"],
             "app_theme": "dark",
-            "app_language": "system",
+            "app_language": "en", # 기본 언어는 영어
+
+            # --- [신규] 번역 언어 설정 ---
+            "stt_source_language": "auto", # 자동 감지
+            "stt_target_language": "KO",   # 한국어
+            "ocr_source_language": "auto", # 자동 감지
+            "ocr_target_language": "KO",   # 한국어
+
             "custom_theme_colors": {
                 "BACKGROUND_PRIMARY": "#1e2b37", "BACKGROUND_SECONDARY": "#283747",
                 "BACKGROUND_TERTIARY": "#212f3c", "TEXT_PRIMARY": "#eaf2f8",

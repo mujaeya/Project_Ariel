@@ -1,8 +1,8 @@
 # ===================================================================
 # Project Ariel - Client Requirements
-# 최종 수정일: 2025-07-04
-# 주석: pycaw/sounddevice의 불안정성 문제를 해결하기 위해
-#       오디오 처리 스택을 soundcard 기반으로 전면 개편함.
+# 최종 수정일: 2025-07-05
+# 주석: OCR 기능의 안정성을 위해 pandas를 추가하고,
+#       오디오 스택을 PyAudio 기반으로 명확히 함.
 # ===================================================================
 
 # [필수] GUI 프레임워크 (GUI Framework)
@@ -12,12 +12,13 @@ PySide6
 pynput
 mss
 opencv-python-headless
+pandas                 # [수정] pytesseract의 데이터프레임 출력을 위해 추가
 
 # [필수] 신규 오디오 처리 스택 (New Audio Processing Stack)
 # -------------------------------------------------------------------
 pyaudio 
 webrtcvad-wheels         # 음성 구간 감지 (Windows에서 설치 용이성을 위해 -wheels 사용)
-numpy==1.26.4        # soundcard와 webrtcvad 모두에 필요한 숫자 처리 라이브러리
+numpy==1.26.4            # 오디오 데이터 처리를 위해 필요
 # -------------------------------------------------------------------
 
 # [필수] API 통신 (API Communication)
@@ -35,7 +36,8 @@ python-dotenv            # .env 파일에서 API 키 등을 불러오는 데 사
 # [백엔드 전용] - 클라이언트 실행 시에는 설치할 필요 없음
 # FastAPI 기반의 로컬 서버를 함께 구동할 경우에만 주석을 해제하세요.
 # ===================================================================
- fastapi
- uvicorn
- python-multipart
- pytesseract
+# fastapi
+# uvicorn
+# python-multipart
+# pytesseract
+PySide6-Essentials

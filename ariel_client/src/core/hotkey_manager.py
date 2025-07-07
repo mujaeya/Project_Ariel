@@ -50,7 +50,7 @@ class HotkeyManager(QObject):
         for key, value in profile.items():
             if key.startswith("hotkey_") and isinstance(value, str) and value:
                 # 'hotkey_toggle_stt' -> 'toggle_stt'
-                action_name = key.replace("hotkey_", "") 
+                action_name = key # tray_icon에서 action_name을 그대로 사용하므로 'hotkey_' 접두사를 유지
                 self.hotkeys[value.lower()] = action_name
         
         logging.info(f"단축키 로드 완료: {self.hotkeys}")
@@ -84,6 +84,7 @@ class HotkeyManager(QObject):
             return
 
         try:
+            # 리스너를 별도 스레드에서 시작하지 않도록 수정 (pynput 내부 처리)
             self.listener = keyboard.GlobalHotKeys(hotkey_map)
             self.listener.start()
             logging.info(f"단축키 리스너 시작. 감시 대상: {list(self.hotkeys.keys())}")
@@ -95,8 +96,6 @@ class HotkeyManager(QObject):
         """단축키 리스너를 안전하게 중지합니다."""
         if self.listener:
             self.listener.stop()
-            # GlobalHotKeys는 백그라운드 스레드이므로 join()으로 종료를 기다리는 것이 더 안전합니다.
-            self.listener.join()
             self.listener = None
             logging.info("단축키 리스너 중지됨.")
 

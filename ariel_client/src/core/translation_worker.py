@@ -1,7 +1,10 @@
 import logging
 import numpy as np
+import pandas as pd
 from PySide6.QtCore import QObject, Signal, Slot, QRect
 import pytesseract
+from PIL import Image
+import io
 
 from ..api_client import APIClient
 from ..mt_engine import MTEngine
@@ -16,55 +19,66 @@ class TranslationWorker(QObject):
 
     def __init__(self, config_manager, parent=None):
         super().__init__(parent)
-        self.config = config_manager.get_active_profile()
-        self.api_client = APIClient(base_url=self.config.get("api_base_url"))
-        self.mt_engine = MTEngine(self.config)
+        self.config_manager = config_manager
+        self.api_client = APIClient(base_url=self.config_manager.get("api_base_url"))
+        self.mt_engine = MTEngine(config_manager)
 
     @Slot(bytes)
     def process_stt_audio(self, audio_bytes: bytes):
         try:
-            self.status_updated.emit("음성을 텍스트로 변환 중...")
-            original_text = self.api_client.stt(audio_bytes, self.config.get("stt_model", "whisper-1"))
-            if not original_text: return
-            self.status_updated.emit("텍스트 번역 중...")
-            translated_results = {}
-            for lang in self.config.get("target_languages", ["KO"]):
-                translated_results[lang] = self.mt_engine.translate(original_text, lang)
-            self.stt_translation_ready.emit(original_text, translated_results)
-        except Exception as e:
-            logger.error(f"STT 오디오 처리 중 오류: {e}", exc_info=True)
-            self.error_occurred.emit("STT 처리 중 오류가 발생했습니다.")
+            self.status_updated.emit("Converting speech to text...")
+            original_text = self.api_client.stt(audio_bytes, self.config_manager.get("stt_model", "whisper-1"))
+            if not original_text.strip():
+                self.status_updated.emit("No speech detected.")
+                return
 
-    @Slot(np.ndarray, QRect)
-    def process_ocr_image(self, image: np.ndarray, original_rect: QRect):
+            self.status_updated.emit("Translating text...")
+            target_langs = self.config_manager.get("target_languages", ["KO"])
+            translated_results = self.mt_engine.translate_text_multi(original_text, target_langs)
+            
+            if not any(translated_results.values()):
+                 self.error_occurred.emit("Translation failed for all languages.")
+                 return
+
+            self.stt_translation_ready.emit(original_text, translated_results)
+            self.status_updated.emit("Listening for voice...") # Reset status
+        except Exception as e:
+            logger.error(f"Error processing STT audio: {e}", exc_info=True)
+            self.error_occurred.emit("An error occurred during STT processing.")
+
+    @Slot(bytes, QRect)
+    def process_ocr_image(self, image_bytes: bytes, original_rect: QRect):
         try:
-            # Tesseract를 사용하여 이미지에서 텍스트 데이터 추출
+            image = Image.open(io.BytesIO(image_bytes))
+            # Pandas is now a requirement, so we can use DATAFRAME
             ocr_data = pytesseract.image_to_data(image, lang='eng+jpn+kor', output_type=pytesseract.Output.DATAFRAME)
-            # 신뢰도가 50 이상인 데이터만 필터링
             ocr_data = ocr_data[ocr_data.conf > 50]
+
             if ocr_data.empty: return
 
-            # 텍스트 라인별로 그룹화
-            lines = ocr_data.groupby(['page_num', 'block_num', 'par_num', 'line_num'])['text'].apply(lambda x: ' '.join(list(x))).tolist()
-            # 각 라인의 경계 상자 계산
+            lines = ocr_data.groupby(['page_num', 'block_num', 'par_num', 'line_num'])['text'].apply(lambda x: ' '.join(map(str, x))).tolist()
             line_bounds = ocr_data.groupby(['page_num', 'block_num', 'par_num', 'line_num']).apply(
-                lambda x: (x.left.min(), x.top.min(), x.width.sum(), x.height.max())
+                lambda x: (
+                    x['left'].min(),
+                    x['top'].min(),
+                    x['left'].max() + x['width'].max() - x['left'].min(),
+                    x['top'].max() + x['height'].max() - x['top'].min()
+                )
             ).tolist()
 
-            # 전체 텍스트를 한 번에 번역
             full_text = "\n".join(lines)
-            target_lang = self.config.get("target_languages", ["KO"])[0]
-            translated_text = self.mt_engine.translate(full_text, target_lang)
-            translated_lines = translated_text.split('\n')
+            if not full_text.strip(): return
             
-            # 번역된 각 라인을 원래 위치에 매핑하여 패치 데이터 생성
+            target_lang = self.config_manager.get("target_languages", ["KO"])[0]
+            # Use the multi-translate function for consistency
+            translated_full = self.mt_engine.translate_text_multi(full_text, [target_lang])
+            translated_lines = translated_full.get(target_lang, "").split('\n')
+            
             patches_data = []
             for i, (x, y, w, h) in enumerate(line_bounds):
                 if i < len(translated_lines) and i < len(lines):
-                    # QRect(캡처 영역 시작 x + 텍스트 x, 캡처 영역 시작 y + 텍스트 y, 너비, 높이)
                     absolute_rect = QRect(original_rect.x() + x, original_rect.y() + y, w, h)
                     
-                    # 원문과 번역문을 함께 담는 딕셔너리로 구조 변경
                     patch_info = {
                         "original": lines[i],
                         "translated": translated_lines[i],
@@ -74,6 +88,13 @@ class TranslationWorker(QObject):
                     
             if patches_data:
                 self.ocr_translation_ready.emit(patches_data)
+        except pytesseract.TesseractNotFoundError:
+            logger.error("Tesseract is not installed or it's not in your PATH.")
+            self.error_occurred.emit("Tesseract OCR is not installed.")
         except Exception as e:
-            logger.error(f"OCR 이미지 처리 중 오류: {e}", exc_info=True)
-            self.error_occurred.emit("OCR 처리 중 오류가 발생했습니다.")
+            logger.error(f"Error processing OCR image: {e}", exc_info=True)
+            # The log shows "Missing pandas package", so we emit a specific error
+            if "Missing pandas package" in str(e):
+                 self.error_occurred.emit("OCR processing failed. The 'pandas' package is missing.")
+            else:
+                 self.error_occurred.emit("An error occurred during OCR processing.")
