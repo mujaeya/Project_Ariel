@@ -17,13 +17,15 @@ from ..core.sound_player import SoundPlayer
 logger = logging.getLogger(__name__)
 
 class TrayIcon(QObject):
-    def __init__(self, config_manager: ConfigManager, icon_path: str, app: QApplication):
+    # [수정] __init__ 시그니처 변경: icon_path: str -> icon: QIcon
+    def __init__(self, config_manager: ConfigManager, icon: QIcon, app: QApplication):
         super().__init__()
         self.app, self.config_manager = app, config_manager
         
         self.is_setup_required = self.check_if_setup_is_required()
         
-        self.tray_icon = QSystemTrayIcon(QIcon(icon_path), self)
+        # [수정] 전달받은 QIcon 객체를 생성자에 바로 사용
+        self.tray_icon = QSystemTrayIcon(icon, self)
         self.tray_icon.setToolTip("Ariel by Seeth")
 
         self.worker_thread = QThread(self)
@@ -46,12 +48,13 @@ class TrayIcon(QObject):
         self.tray_icon.show()
         logger.info("트레이 아이콘 및 핵심 컴포넌트 준비 완료.")
         
+        self.hotkey_manager.start()
+        
         if self.is_setup_required:
             logger.warning("필수 설정이 누락되어 설정 창을 먼저 실행합니다.")
             QTimer.singleShot(100, self.open_setup_window)
         else:
             self.initialize_worker_and_start()
-            self.hotkey_manager.start()
 
     def check_if_setup_is_required(self):
         api_key = self.config_manager.get("deepl_api_key")
@@ -115,7 +118,7 @@ class TrayIcon(QObject):
         if self.setup_window and self.setup_window.isVisible():
             self.setup_window.activateWindow()
             return
-        self.hotkey_manager.stop()
+        #self.hotkey_manager.stop()
         self.setup_window = SetupWindow(self.config_manager)
         self.setup_window.closed.connect(self.on_setup_window_closed)
         self.setup_window.show()

@@ -51,6 +51,9 @@ class ColorPickerButton(QPushButton):
             self.set_color(color)
             self.colorChanged.emit(color)
 
+    def tr(self, text):
+        return QCoreApplication.translate("ColorPickerButton", text)
+
 class ProgramSettingsPage(SettingsPage):
     """프로그램의 전반적인 설정을 담당하는 페이지."""
     theme_applied = Signal()
@@ -155,7 +158,6 @@ class ProgramSettingsPage(SettingsPage):
             
         for action, widget in self.hotkey_widgets.items():
             hotkey_str = self.config_manager.get(action, "")
-            # [오류 수정] PortableText 사용
             widget.setKeySequence(QKeySequence.fromString(hotkey_str, QKeySequence.PortableText))
 
     def save_settings(self):
@@ -168,9 +170,11 @@ class ProgramSettingsPage(SettingsPage):
             self.config_manager.set("custom_theme_colors", custom_colors)
         for action, widget in self.hotkey_widgets.items():
             sequence = widget.keySequence()
-            # [개선] 더 안정적인 StandardKey 형식으로 저장
             hotkey_str = sequence.toString(QKeySequence.PortableText).lower().replace("meta", "cmd")
             self.config_manager.set(action, hotkey_str)
+
+    def tr(self, text):
+        return QCoreApplication.translate("ProgramSettingsPage", text)
 
 
 class OcrSettingsPage(SettingsPage):
@@ -185,7 +189,7 @@ class OcrSettingsPage(SettingsPage):
         self.target_lang_combo = QComboBox()
         for name, code in SUPPORTED_LANGUAGES.items():
             self.source_lang_combo.addItem(self.tr(name), code)
-            if code != 'auto': # 목표 언어는 '자동'일 수 없음
+            if code != 'auto': 
                 self.target_lang_combo.addItem(self.tr(name), code)
         lang_layout = QHBoxLayout()
         lang_layout.addWidget(QLabel(self.tr("Source Language:")))
@@ -215,6 +219,9 @@ class OcrSettingsPage(SettingsPage):
         self.config_manager.set("ocr_source_language", self.source_lang_combo.currentData())
         self.config_manager.set("ocr_target_language", self.target_lang_combo.currentData())
         self.config_manager.set("ocr_mode", "overlay" if self.mode_combo.currentIndex() == 0 else "patch")
+
+    def tr(self, text):
+        return QCoreApplication.translate("OcrSettingsPage", text)
 
 class SttSettingsPage(SettingsPage):
     def __init__(self, config_manager: ConfigManager):
@@ -269,8 +276,10 @@ class SttSettingsPage(SettingsPage):
         self.config_manager.set("vad_sensitivity", self.vad_slider.value())
         self.config_manager.set("silence_threshold_s", float(self.silence_spinbox.value()))
 
+    def tr(self, text):
+        return QCoreApplication.translate("SttSettingsPage", text)
+
 class StyleSettingsPage(SettingsPage):
-    """[복원] 오버레이 스타일 설정을 위한 페이지"""
     def __init__(self, config_manager: ConfigManager):
         super().__init__()
         self.config_manager = config_manager
@@ -278,21 +287,19 @@ class StyleSettingsPage(SettingsPage):
         self.add_widget(DescriptionLabel(self.tr("Configure the design of the overlay window where translation results are displayed, including font and colors.")))
         
         stt_card = SettingsCard(self.tr("Voice (STT) Overlay"))
-        # 추가적인 스타일 설정 위젯들을 여기에 구현할 수 있습니다.
-        # 예: stt_card.add_widget(QLabel("배경 색상:"))
         self.add_widget(stt_card)
 
         ocr_card = SettingsCard(self.tr("Screen (OCR) Overlay"))
-        # 추가적인 스타일 설정 위젯들을 여기에 구현할 수 있습니다.
         self.add_widget(ocr_card)
 
     def load_settings(self):
-        # 여기에 스타일 관련 설정 로드 로직 추가
         pass
 
     def save_settings(self):
-        # 여기에 스타일 관련 설정 저장 로직 추가
         pass
+
+    def tr(self, text):
+        return QCoreApplication.translate("StyleSettingsPage", text)
 
 class SetupWindow(QWidget):
     closed = Signal()
@@ -318,58 +325,113 @@ class SetupWindow(QWidget):
         self.navigation_bar.setCurrentRow(initial_page_index)
 
     def _init_ui(self):
-        main_layout = QHBoxLayout(self); main_layout.setContentsMargins(0, 0, 0, 0); main_layout.setSpacing(0)
-        self.navigation_bar = QListWidget(); self.navigation_bar.setObjectName("navigationBar"); self.navigation_bar.setFixedWidth(240); self.navigation_bar.setSpacing(5)
-        self.pages_stack = QStackedWidget(); self.pages = []
+        main_layout = QHBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
         
-        content_widget = QWidget(); content_widget.setObjectName("contentWidget")
-        content_layout = QVBoxLayout(content_widget); content_layout.setContentsMargins(0, 0, 0, 0); content_layout.setSpacing(0)
+        self.navigation_bar = QListWidget()
+        self.navigation_bar.setObjectName("navigationBar")
+        self.navigation_bar.setFixedWidth(240)
+        self.navigation_bar.setSpacing(5)
+        
+        self.pages_stack = QStackedWidget()
+        self.pages = []
+        
+        content_widget = QWidget()
+        content_widget.setObjectName("contentWidget")
+        content_layout = QVBoxLayout(content_widget)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(0)
         
         content_layout.addWidget(self.pages_stack, 1)
 
-        # [개선] 버튼 바를 QFrame으로 만들어 QSS 스타일링 용이하게 변경
-        button_bar = QFrame(); button_bar.setObjectName("buttonBar"); button_bar.setFrameShape(QFrame.Shape.StyledPanel)
-        button_bar_layout = QHBoxLayout(button_bar); button_bar_layout.setContentsMargins(20, 10, 20, 10)
+        button_bar = QFrame()
+        button_bar.setObjectName("buttonBar")
+        button_bar.setFrameShape(QFrame.Shape.StyledPanel)
+        button_bar_layout = QHBoxLayout(button_bar)
+        button_bar_layout.setContentsMargins(20, 10, 20, 10)
         
-        self.reset_button = QPushButton(self.tr("Reset Settings")); button_bar_layout.addWidget(self.reset_button)
+        self.reset_button = QPushButton(self.tr("Reset Settings"))
+        # [수정 사항 적용] reset_button에 objectName 설정
+        self.reset_button.setObjectName("secondaryButton") 
+        button_bar_layout.addWidget(self.reset_button)
+        
         button_bar_layout.addSpacerItem(QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
         
-        self.save_button = QPushButton(self.tr("Save and Close")); self.save_button.setObjectName("primaryButton")
+        self.save_button = QPushButton(self.tr("Save and Close"))
+        self.save_button.setObjectName("primaryButton")
+        
         self.cancel_button = QPushButton(self.tr("Cancel"))
-        button_bar_layout.addWidget(self.save_button); button_bar_layout.addWidget(self.cancel_button)
+        # [수정 사항 적용] cancel_button에 objectName 설정
+        self.cancel_button.setObjectName("secondaryButton") 
+        
+        button_bar_layout.addWidget(self.save_button)
+        button_bar_layout.addWidget(self.cancel_button)
         
         content_layout.addWidget(button_bar)
-        main_layout.addWidget(self.navigation_bar); main_layout.addWidget(content_widget, 1)
+        main_layout.addWidget(self.navigation_bar)
+        main_layout.addWidget(content_widget, 1)
 
     def _add_pages(self):
         self.program_page = ProgramSettingsPage(self.config_manager)
         self.ocr_page = OcrSettingsPage(self.config_manager)
         self.stt_page = SttSettingsPage(self.config_manager)
-        self.style_page = StyleSettingsPage(self.config_manager) # [복원] 스타일 페이지 추가
+        self.style_page = StyleSettingsPage(self.config_manager)
         
         self.add_page(self.program_page, "Program", resource_path("assets/icons/settings.svg"))
         self.add_page(self.ocr_page, "Screen Translation (OCR)", resource_path("assets/icons/ocr.svg"))
         self.add_page(self.stt_page, "Voice Translation (STT)", resource_path("assets/icons/audio.svg"))
-        self.add_page(self.style_page, "Overlay Style", resource_path("assets/icons/style.svg")) # [복원]
+        self.add_page(self.style_page, "Overlay Style", resource_path("assets/icons/style.svg"))
         
         self.program_page.theme_applied.connect(self.apply_stylesheet)
 
     def add_page(self, page_widget, title, icon_path):
         self.pages.append(page_widget)
         self.pages_stack.addWidget(page_widget)
-        # [수정] self.tr을 사용하여 페이지 제목 번역
+        
         item = QListWidgetItem()
-        item_widget = NavigationItemWidget(icon_path, self.tr(title))
-        item.setSizeHint(item_widget.sizeHint())
+        item_widget = NavigationItemWidget(icon_path, title)
+        
+        item.setSizeHint(QSize(self.navigation_bar.width(), 40)) 
+        
         self.navigation_bar.addItem(item)
         self.navigation_bar.setItemWidget(item, item_widget)
         
-    def update_navigation_icons(self, index=None):
-        # 아이콘 색상 변경 로직은 QSS로 제어하므로 Python 코드는 단순하게 유지
-        # 선택된 아이템의 상태를 업데이트하여 QSS가 적용되도록 함
+    def update_navigation_icons(self):
+        """네비게이션 아이템의 선택 상태에 따라 아이콘과 텍스트 색상을 모두 업데이트합니다."""
+        theme = self.config_manager.get("app_theme", "dark")
+        
+        if theme == 'custom':
+            colors = self.config_manager.get("custom_theme_colors")
+            active_icon_color = colors.get("TEXT_HEADER", "#ffffff")
+            inactive_icon_color = colors.get("TEXT_MUTED", "#85929e")
+            active_text_color = colors.get("TEXT_HEADER", "#ffffff")
+            inactive_text_color = colors.get("TEXT_PRIMARY", "#eaf2f8")
+            
+        elif theme == 'light':
+            active_icon_color = "#ffffff"
+            inactive_icon_color = "#4f5660" 
+            active_text_color = "#ffffff" 
+            inactive_text_color = "#2e3338" 
+            
+        else: 
+            active_icon_color = "#ffffff"
+            inactive_icon_color = "#b9bbbe"
+            active_text_color = "#ffffff"  
+            inactive_text_color = "#b9bbbe"
+
+        current_row = self.navigation_bar.currentRow()
         for row in range(self.navigation_bar.count()):
             item = self.navigation_bar.item(row)
-            item.setSelected(row == self.navigation_bar.currentRow())
+            widget = self.navigation_bar.itemWidget(item)
+            if isinstance(widget, NavigationItemWidget):
+                widget.set_active(
+                    is_active=(row == current_row),
+                    active_color=active_icon_color,
+                    inactive_color=inactive_icon_color,
+                    active_text_color=active_text_color,
+                    inactive_text_color=inactive_text_color
+                )
 
     def apply_stylesheet(self):
         theme = self.config_manager.get("app_theme", "dark")
@@ -400,7 +462,6 @@ class SetupWindow(QWidget):
         except Exception as e:
             logging.error(f"스타일시트 적용 중 오류 발생: {e}", exc_info=True)
 
-    # [수정] 프로그램 재시작이 필요한 경우 메시지 표시
     def save_and_close(self):
         current_lang = self.config_manager.get("app_language")
         new_lang = self.program_page.lang_combo.currentData()
@@ -417,6 +478,8 @@ class SetupWindow(QWidget):
     def reset_settings(self):
         reply = QMessageBox.question(self, self.tr("Reset Settings"), self.tr("Are you sure you want to reset all settings to their default values?"), QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
         if reply == QMessageBox.StandardButton.Yes:
+            # 프로필 기반이므로 활성 프로필을 리셋하는 것이 더 적절할 수 있습니다.
+            # 여기서는 전체 설정을 리셋합니다.
             self.config_manager.reset_config()
             self.load_settings()
             self.apply_stylesheet()
@@ -426,18 +489,17 @@ class SetupWindow(QWidget):
         for page in self.pages:
             if hasattr(page, 'load_settings'):
                 page.load_settings()
+        self.update_navigation_icons()
         
     def save_settings(self):
         for page in self.pages:
             if hasattr(page, 'save_settings'):
                 page.save_settings()
-        # [중요] 설정 저장 후에는 즉시 파일에 쓰도록 명시
         self.config_manager.save_config()
 
     def closeEvent(self, event):
         self.closed.emit()
         super().closeEvent(event)
 
-    # [수정] tr 함수를 클래스 내에 정의하여 쉬운 접근
     def tr(self, text):
         return QCoreApplication.translate("SetupWindow", text)
