@@ -1,3 +1,4 @@
+# ariel_client/src/gui/tray_icon.py (이 코드로 전체 교체)
 import logging
 from PySide6.QtWidgets import QSystemTrayIcon, QMenu, QMessageBox, QApplication
 from PySide6.QtGui import QIcon, QAction
@@ -61,33 +62,25 @@ class TrayIcon(QObject):
         
         logger.info("필수 설정 확인 완료. 번역 엔진을 초기화합니다.")
         try:
-            # QThread 객체를 생성하여 self.worker_thread에 할당합니다.
             self.worker_thread = QThread()
-            
-            # TranslationWorker 객체를 생성합니다.
             self.worker = TranslationWorker(self.config_manager)
-            
-            # 워커를 새로 만든 스레드로 이동시킵니다.
             self.worker.moveToThread(self.worker_thread)
             
-            # 시그널과 슬롯을 연결합니다.
+            # [핵심 수정] OCR 관련 시그널 연결 통일
             self.worker.stt_translation_ready.connect(self.overlay_manager.add_stt_translation)
-            self.worker.ocr_translation_ready.connect(self.overlay_manager.show_ocr_patches)
+            self.worker.ocr_patches_ready.connect(self.overlay_manager.show_ocr_patches) # ocr_translation_ready 대신 사용
             self.worker.error_occurred.connect(self.on_worker_error)
             self.worker.status_updated.connect(self.overlay_manager.add_system_message_to_stt)
 
-            # 스레드 관련 시그널을 연결하여 안전하게 종료될 수 있도록 합니다.
             self.worker_thread.finished.connect(self.worker.deleteLater)
             self.worker_thread.finished.connect(self.worker_thread.deleteLater)
 
-            # 모든 준비가 끝나면 스레드를 시작합니다.
             self.worker_thread.start()
             
             logger.info("번역 엔진 스레드가 성공적으로 시작되었습니다.")
         except Exception as e:
             logger.critical(f"번역 엔진 초기화 실패: {e}", exc_info=True)
             
-            # [수정] 복잡한 f-string을 여러 줄로 나누어 가독성을 높이고 잠재적 오류를 방지합니다.
             title = self.tr("Initialization Failed")
             message = self.tr('Failed to initialize translation engine.')
             details = self.tr('Exiting program.')
@@ -169,15 +162,21 @@ class TrayIcon(QObject):
 
         logging.info("음성 번역 스레드 시작")
         self.audio_thread = QThread()
-        self.audio_processor = AudioProcessor()
+        # [핵심 수정] 생성자에 config_manager 전달
+        self.audio_processor = AudioProcessor(self.config_manager)
         self.audio_processor.moveToThread(self.audio_thread)
 
         self.audio_processor.audio_chunk_ready.connect(self.worker.process_stt_audio)
-        self.audio_processor.error.connect(self.on_audio_error)
-        self.audio_thread.started.connect(self.audio_processor.start)
+        self.audio_processor.status_updated.connect(lambda msg: self.overlay_manager.add_system_message_to_stt(f"오디오: {msg}"))
+        self.audio_thread.started.connect(self.audio_processor.start_processing)
         
+        # 스레드 종료 시 자원 정리
+        self.audio_processor.finished.connect(self.on_audio_processor_finished)
+        self.audio_thread.finished.connect(self.audio_thread.deleteLater)
+
         self.audio_thread.start()
-        self.sound_player.play_start_sound()
+        self.sound_player.play(self.config_manager.get("sound_stt_start"))
+        self.overlay_manager.show_stt_overlay()
 
     def stop_voice_translation(self):
         if not self.audio_thread or not self.audio_thread.isRunning():
@@ -185,19 +184,27 @@ class TrayIcon(QObject):
 
         logging.info("음성 번역 스레드 종료 요청")
         if self.audio_processor:
-            self.audio_processor.stop()
+            # stop()은 이제 Non-blocking 이므로 바로 quit() 호출 가능
+            QTimer.singleShot(0, self.audio_processor.stop)
 
-        self.audio_thread.quit()
-        if not self.audio_thread.wait(5000):
-            logging.warning("음성 번역 스레드가 제때 종료되지 않아 강제 종료합니다.")
-            self.audio_thread.terminate()
-            self.audio_thread.wait()
-
+    @Slot()
+    def on_audio_processor_finished(self):
+        """AudioProcessor의 작업이 완료된 후 호출되는 슬롯"""
+        logging.info("Audio processor가 finished 시그널을 보냈습니다.")
+        if self.audio_thread and self.audio_thread.isRunning():
+            self.audio_thread.quit()
+            if not self.audio_thread.wait(3000):
+                logging.warning("오디오 스레드가 제때 종료되지 않아 강제 종료합니다.")
+                self.audio_thread.terminate()
+                self.audio_thread.wait()
+        
         self.audio_thread = None
         self.audio_processor = None
-        
         logging.info("음성 번역 스레드 완전히 종료됨")
-        self.sound_player.play_stop_sound()
+        self.sound_player.play(self.config_manager.get("sound_stt_stop"))
+        self.overlay_manager.hide_stt_overlay()
+        self.voice_translation_action.setChecked(False) # UI 상태 동기화
+
 
     @Slot(bool)
     def toggle_ocr_translation(self, checked: bool):
@@ -227,22 +234,39 @@ class TrayIcon(QObject):
         if rect.isNull():
             self.ocr_translation_action.setChecked(False)
             return
-            
+        
+        self.stop_ocr_monitoring() # 기존 모니터링이 있다면 중지
+
         self.ocr_monitor_thread = QThread(self)
         self.screen_monitor = ScreenMonitor(rect, self.overlay_manager.get_stt_overlay_geometry)
         self.screen_monitor.moveToThread(self.ocr_monitor_thread)
+        
         self.ocr_monitor_thread.started.connect(self.screen_monitor.start_monitoring)
         self.screen_monitor.image_changed.connect(self.worker.process_ocr_image)
         self.screen_monitor.stopped.connect(self.ocr_monitor_thread.quit)
-        self.ocr_monitor_thread.finished.connect(self.screen_monitor.deleteLater)
+        self.ocr_monitor_thread.finished.connect(self.ocr_monitor_thread.deleteLater)
+        
         self.ocr_monitor_thread.start()
-        self.sound_player.play_start_sound()
+        self.sound_player.play(self.config_manager.get("sound_ocr_start"))
 
     def stop_ocr_monitoring(self):
         if self.screen_monitor:
-            self.screen_monitor.stop()
+            self.screen_monitor.stop() # 스레드 루프 중단
+        
+        if self.ocr_monitor_thread:
+            self.ocr_monitor_thread.quit()
+            if not self.ocr_monitor_thread.wait(3000):
+                logging.warning("OCR 모니터 스레드가 제때 종료되지 않아 강제 종료합니다.")
+                self.ocr_monitor_thread.terminate()
+                self.ocr_monitor_thread.wait()
+
+        self.ocr_monitor_thread = None
+        self.screen_monitor = None
+        
         self.overlay_manager.hide_ocr_overlay()
-        self.sound_player.play_stop_sound()
+        self.sound_player.play(self.config_manager.get("sound_ocr_stop"))
+        self.ocr_translation_action.setChecked(False)
+
 
     @Slot(str)
     def on_worker_error(self, message: str):
@@ -252,24 +276,19 @@ class TrayIcon(QObject):
         if "OCR" in message or "Screen" in message:
             self.ocr_translation_action.setChecked(False)
 
-    @Slot(str)
-    def on_audio_error(self, message: str):
-        self.on_worker_error(f"Audio Error: {message}")
-
     def quit_application(self):
         logger.info("애플리케이션 종료 절차를 시작합니다.")
         self.hotkey_manager.stop()
-        if self.audio_thread and self.audio_thread.isRunning():
-            self.stop_voice_translation()
-        if self.ocr_monitor_thread and self.ocr_monitor_thread.isRunning():
-            self.stop_ocr_monitoring()
+        self.stop_voice_translation()
+        self.stop_ocr_monitoring()
         
         QTimer.singleShot(500, self._quit_threads_and_app)
 
     def _quit_threads_and_app(self):
         if self.worker_thread:
             self.worker_thread.quit()
-            self.worker_thread.wait()
+            if not self.worker_thread.wait(3000):
+                self.worker_thread.terminate()
         self.tray_icon.hide()
         QApplication.instance().quit()
 

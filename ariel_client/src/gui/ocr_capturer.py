@@ -1,6 +1,6 @@
 # ariel_client/src/gui/ocr_capturer.py (이 코드로 전체 교체)
 import logging
-from PySide6.QtWidgets import QWidget
+from PySide6.QtWidgets import QWidget, QRubberBand
 from PySide6.QtCore import Qt, QRect, Signal, QPoint
 from PySide6.QtGui import QPainter, QPen, QColor, QGuiApplication, QPaintEvent
 
@@ -9,18 +9,15 @@ logger = logging.getLogger(__name__)
 class OcrCapturer(QWidget):
     """화면의 특정 영역을 캡처하기 위한 반투명 오버레이 위젯입니다."""
     region_selected = Signal(QRect)
-    # [수정] 창이 닫힐 때 발생하는 시그널들을 명시적으로 정의합니다.
     finished = Signal()
     cancelled = Signal()
 
     def __init__(self, parent=None):
         super().__init__()
-        # 모든 모니터를 포함하는 가상 데스크톱의 전체 크기를 가져옵니다.
         screens = QGuiApplication.screens()
         if not screens:
             raise RuntimeError("사용 가능한 화면을 찾을 수 없습니다.")
         
-        # 모든 화면을 포함하는 가상 지오메트리 계산
         virtual_desktop_rect = QRect()
         for screen in screens:
             virtual_desktop_rect = virtual_desktop_rect.united(screen.geometry())
@@ -57,40 +54,37 @@ class OcrCapturer(QWidget):
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton and self._is_selecting:
             self._is_selecting = False
-            self.hide() # 즉시 숨겨서 뒷 배경이 보이도록 함
+            self.hide()
             
             capture_rect = QRect(self.start_point, self.end_point).normalized()
             
-            # 너무 작은 영역은 무시
-            if capture_rect.width() > 10 and capture_rect.height() > 10:
+            if capture_rect.width() > 5 and capture_rect.height() > 5:
                 logger.info(f"OCR 영역 선택 완료: {capture_rect}")
                 self.region_selected.emit(capture_rect)
             else:
-                logger.info("선택한 영역이 너무 작아 무시합니다.")
-                self.cancelled.emit() # 유효하지 않은 선택도 취소로 간주
+                logger.warning("선택한 영역이 너무 작아 무시합니다.")
+                self.cancelled.emit()
             
-            self.close() # 작업 완료 후 창 닫기
+            self.close()
 
     def paintEvent(self, event: QPaintEvent):
         """화면을 반투명하게 덮고 선택 영역만 밝게 표시합니다."""
         painter = QPainter(self)
         
-        # [수정] 전체 화면을 반투명 검은색(alpha=100)으로 덮습니다.
-        painter.fillRect(self.rect(), QColor(0, 0, 0, 100))
+        # 전체 화면을 반투명 검은색(alpha=120)으로 덮습니다.
+        painter.fillRect(self.rect(), QColor(0, 0, 0, 120))
         
-        # 선택된 영역(rubber_band의 geometry)을 가져옵니다.
-        selection_rect = self.rubber_band.geometry()
+        # 선택된 영역을 가져옵니다.
+        selection_rect = QRect(self.start_point, self.end_point).normalized()
         
-        # 만약 선택 영역이 유효하다면 (너비와 높이가 0이 아님)
-        if not selection_rect.isNull():
+        if self._is_selecting and not selection_rect.isNull():
             # 해당 영역의 반투명 레이어를 지워서 원래 화면이 보이게 합니다.
             painter.eraseRect(selection_rect)
             
             # 선택 영역 주위에 1px짜리 하얀색 테두리를 그립니다.
-            pen = QPen(QColor(255, 255, 255), 1)
+            pen = QPen(QColor(255, 255, 255), 1, Qt.PenStyle.SolidLine)
             painter.setPen(pen)
-            # drawRect는 x, y, w-1, h-1 이므로 1을 더해줍니다.
-            painter.drawRect(selection_rect.adjusted(0, 0, 0, 0))
+            painter.drawRect(selection_rect)
 
     def closeEvent(self, event):
         """창이 어떤 이유로든 닫힐 때 finished 시그널을 보냅니다."""
