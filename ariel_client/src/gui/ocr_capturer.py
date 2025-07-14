@@ -2,7 +2,7 @@
 import logging
 from PySide6.QtWidgets import QWidget
 from PySide6.QtCore import Qt, QRect, Signal, QPoint
-from PySide6.QtGui import QPainter, QPen, QColor, QGuiApplication
+from PySide6.QtGui import QPainter, QPen, QColor, QGuiApplication, QPaintEvent
 
 logger = logging.getLogger(__name__)
 
@@ -71,23 +71,26 @@ class OcrCapturer(QWidget):
             
             self.close() # 작업 완료 후 창 닫기
 
-    def paintEvent(self, event):
+    def paintEvent(self, event: QPaintEvent):
+        """화면을 반투명하게 덮고 선택 영역만 밝게 표시합니다."""
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         
-        # 전체 화면을 50% 투명도의 검은색으로 덮습니다.
-        painter.fillRect(self.rect(), QColor(0, 0, 0, 128))
-
-        if not self.start_point.isNull() and not self.end_point.isNull():
-            selection_rect = QRect(self.start_point, self.end_point).normalized()
-            
-            # 선택된 영역은 투명하게 만듭니다 (배경을 지웁니다).
+        # [수정] 전체 화면을 반투명 검은색(alpha=100)으로 덮습니다.
+        painter.fillRect(self.rect(), QColor(0, 0, 0, 100))
+        
+        # 선택된 영역(rubber_band의 geometry)을 가져옵니다.
+        selection_rect = self.rubber_band.geometry()
+        
+        # 만약 선택 영역이 유효하다면 (너비와 높이가 0이 아님)
+        if not selection_rect.isNull():
+            # 해당 영역의 반투명 레이어를 지워서 원래 화면이 보이게 합니다.
             painter.eraseRect(selection_rect)
             
-            # 선택 영역 테두리를 그립니다.
-            pen = QPen(QColor(0, 120, 215, 255), 2, Qt.PenStyle.SolidLine)
+            # 선택 영역 주위에 1px짜리 하얀색 테두리를 그립니다.
+            pen = QPen(QColor(255, 255, 255), 1)
             painter.setPen(pen)
-            painter.drawRect(selection_rect)
+            # drawRect는 x, y, w-1, h-1 이므로 1을 더해줍니다.
+            painter.drawRect(selection_rect.adjusted(0, 0, 0, 0))
 
     def closeEvent(self, event):
         """창이 어떤 이유로든 닫힐 때 finished 시그널을 보냅니다."""

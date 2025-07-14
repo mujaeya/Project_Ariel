@@ -3,17 +3,19 @@ import logging
 from PySide6.QtWidgets import (QApplication, QWidget, QHBoxLayout, QListWidget, QStackedWidget, QVBoxLayout,
                              QListWidgetItem, QPushButton, QSpacerItem, QSizePolicy, QLineEdit,
                              QKeySequenceEdit, QLabel, QFileDialog, QSlider, QMessageBox,
-                             QComboBox, QSpinBox, QColorDialog, QFrame, QFontComboBox)
+                             QComboBox, QSpinBox, QColorDialog, QFrame, QFontComboBox, QFormLayout)
 from PySide6.QtCore import Qt, Signal, QSize, QCoreApplication, QTranslator
 from PySide6.QtGui import QKeySequence, QColor, QPalette, QIcon
 
+# [수정] 실제 함수명에 맞게 임포트 구문 변경
 from ..utils import resource_path
 from ..config_manager import ConfigManager
 from .fluent_widgets import (NavigationItemWidget, SettingsPage, TitleLabel,
-                               DescriptionLabel, SettingsCard)
+                             DescriptionLabel, SettingsCard)
 
 logger = logging.getLogger(__name__)
 
+# 지원 언어 목록 정의
 SUPPORTED_LANGUAGES = {
     "English": "en", "Korean": "ko", "Japanese": "ja",
     "Chinese": "zh", "German": "de", "French": "fr", "Spanish": "es",
@@ -24,6 +26,7 @@ SUPPORTED_DEEPL_LANGUAGES = {
 }
 
 class ColorPickerButton(QPushButton):
+    """색상 선택 다이얼로그를 여는 커스텀 버튼 위젯"""
     colorChanged = Signal()
     def __init__(self, color=Qt.GlobalColor.white, parent=None):
         super().__init__(parent)
@@ -51,17 +54,20 @@ class ColorPickerButton(QPushButton):
             self.colorChanged.emit()
 
 class BaseSettingsPage(SettingsPage):
+    """모든 설정 페이지의 기반이 되는 클래스"""
     def __init__(self, config_manager: ConfigManager):
         super().__init__()
         self.config_manager = config_manager
 
     def retranslate_ui(self):
+        # 각 자식 클래스에서 이 메서드를 오버라이드하여 UI 텍스트를 번역
         pass
 
     def tr(self, context, text):
         return QCoreApplication.translate(context, text)
 
 class ProgramSettingsPage(BaseSettingsPage):
+    """프로그램의 기본 설정을 담당하는 페이지"""
     language_changed = Signal()
     theme_changed = Signal()
 
@@ -73,6 +79,7 @@ class ProgramSettingsPage(BaseSettingsPage):
         self.add_widget(self.title_label)
         self.add_widget(self.desc_label)
 
+        # UI 언어 설정
         self.lang_card = SettingsCard()
         self.lang_combo = QComboBox()
         for name, code in SUPPORTED_LANGUAGES.items():
@@ -80,18 +87,21 @@ class ProgramSettingsPage(BaseSettingsPage):
         self.lang_card.add_widget(self.lang_combo)
         self.add_widget(self.lang_card)
 
+        # DeepL API 키 설정
         self.api_card = SettingsCard()
         self.deepl_key_edit = QLineEdit()
         self.deepl_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
         self.api_card.add_widget(self.deepl_key_edit)
         self.add_widget(self.api_card)
 
+        # UI 테마 설정
         self.theme_card = SettingsCard()
         self.theme_combo = QComboBox()
         self.theme_combo.addItems(["Dark", "Light", "Custom"])
         self.theme_card.add_widget(self.theme_combo)
         self.add_widget(self.theme_card)
 
+        # 커스텀 테마 색상 설정
         self.custom_colors_card = SettingsCard()
         self.color_pickers = {}
         colors_to_pick = { "Primary Background": "BACKGROUND_PRIMARY", "Secondary Background": "BACKGROUND_SECONDARY", "Tertiary Background": "BACKGROUND_TERTIARY", "Primary Text": "TEXT_PRIMARY", "Header Text": "TEXT_HEADER", "Muted Text": "TEXT_MUTED", "Interactive Normal": "INTERACTIVE_NORMAL", "Interactive Hover": "INTERACTIVE_HOVER", "Interactive Accent": "INTERACTIVE_ACCENT", "Interactive Accent Hover": "INTERACTIVE_ACCENT_HOVER", "Border Color": "BORDER_COLOR" }
@@ -104,6 +114,7 @@ class ProgramSettingsPage(BaseSettingsPage):
             layout.addWidget(color_picker); self.custom_colors_card.add_layout(layout)
         self.add_widget(self.custom_colors_card)
 
+        # 전역 단축키 설정
         self.hotkey_card = SettingsCard()
         self.hotkey_widgets = {}; self.hotkey_labels = {}
         hotkey_actions = { "hotkey_toggle_stt": "Start/Stop Voice Translation", "hotkey_toggle_ocr": "Start/Stop Screen Translation", "hotkey_toggle_setup": "Open/Close Settings Window", "hotkey_quit_app": "Quit Program" }
@@ -142,7 +153,7 @@ class ProgramSettingsPage(BaseSettingsPage):
         
         for label, name_key, _ in self.color_pickers.values():
             label.setText(f"{self.tr('ProgramSettingsPage', name_key)}:")
-        for label, desc_key in self.hotkey_labels.values():
+        for action, (label, desc_key) in self.hotkey_labels.items():
             label.setText(f"{self.tr('ProgramSettingsPage', desc_key)}:")
             
     def load_settings(self):
@@ -177,60 +188,73 @@ class ProgramSettingsPage(BaseSettingsPage):
             self.config_manager.set(action, widget.keySequence().toString(QKeySequence.PortableText).lower().replace("meta", "cmd"))
 
 class OcrSettingsPage(BaseSettingsPage):
+    """화면 번역(OCR) 설정을 담당하는 페이지"""
     def __init__(self, config_manager: ConfigManager):
         super().__init__(config_manager)
-        self.title_label = TitleLabel(); self.desc_label = DescriptionLabel()
-        self.add_widget(self.title_label); self.add_widget(self.desc_label)
-        self.lang_card = SettingsCard(); self.source_lang_combo = QComboBox(); self.target_lang_combo = QComboBox()
-        lang_layout = QHBoxLayout(); self.source_lang_label = QLabel(); self.target_lang_label = QLabel()
-        lang_layout.addWidget(self.source_lang_label); lang_layout.addWidget(self.source_lang_combo); lang_layout.addStretch(1)
-        lang_layout.addWidget(self.target_lang_label); lang_layout.addWidget(self.target_lang_combo)
-        self.lang_card.add_layout(lang_layout); self.add_widget(self.lang_card)
-        self.mode_card = SettingsCard(); self.mode_combo = QComboBox()
-        self.mode_card.add_widget(self.mode_combo); self.add_widget(self.mode_card)
+        
+        self.title_label = TitleLabel()
+        self.desc_label = DescriptionLabel()
+        self.add_widget(self.title_label)
+        self.add_widget(self.desc_label)
+
+        self.main_card = SettingsCard()
+        form_layout = QFormLayout()
+
+        self.mode_label = QLabel()
+        self.mode_combo = QComboBox()
+        self.mode_combo.addItems(["Standard Overlay", "Patch Mode"])
+        form_layout.addRow(self.mode_label, self.mode_combo)
+
+        self.source_lang_label = QLabel()
+        self.source_lang_combo = QComboBox()
+        for name in SUPPORTED_DEEPL_LANGUAGES.keys():
+            self.source_lang_combo.addItem(name)
+        form_layout.addRow(self.source_lang_label, self.source_lang_combo)
+
+        self.target_lang_label = QLabel()
+        self.target_lang_combo = QComboBox()
+        for name, code in SUPPORTED_DEEPL_LANGUAGES.items():
+            if code != 'auto':
+                self.target_lang_combo.addItem(name)
+        form_layout.addRow(self.target_lang_label, self.target_lang_combo)
+
+        self.main_card.add_layout(form_layout)
+        self.add_widget(self.main_card)
+        
+        self.retranslate_ui()
 
     def retranslate_ui(self):
         self.title_label.setText(self.tr("OcrSettingsPage", "Screen Translation (OCR) Settings"))
-        self.desc_label.setText(self.tr("OcrSettingsPage", "Configure the detailed behavior for screen text recognition and translation."))
-        self.lang_card.title_label.setText(self.tr("OcrSettingsPage", "Language Settings"))
+        self.desc_label.setText(self.tr("OcrSettingsPage", "Configure the OCR mode and languages for screen translation."))
+        self.main_card.title_label.setText(self.tr("OcrSettingsPage", "Language & Mode"))
+        
+        self.mode_label.setText(self.tr("OcrSettingsPage", "OCR Mode:"))
         self.source_lang_label.setText(self.tr("OcrSettingsPage", "Source Language:"))
         self.target_lang_label.setText(self.tr("OcrSettingsPage", "Target Language:"))
-        
-        for combo in [self.source_lang_combo, self.target_lang_combo]:
-            combo.blockSignals(True); current_data = combo.currentData(); combo.clear()
-        
-        for name, code in SUPPORTED_DEEPL_LANGUAGES.items():
-            tr_name = self.tr("SUPPORTED_LANGUAGES", name)
-            self.source_lang_combo.addItem(tr_name, code)
-            if code != 'auto': self.target_lang_combo.addItem(tr_name, code)
-        
-        for combo, data in [(self.source_lang_combo, self.source_lang_combo.currentData()), (self.target_lang_combo, self.target_lang_combo.currentData())]:
-            if (idx := combo.findData(data)) != -1: combo.setCurrentIndex(idx)
-            combo.blockSignals(False)
-
-        self.mode_card.title_label.setText(self.tr("OcrSettingsPage", "Translation Mode"))
-        current_idx = self.mode_combo.currentIndex(); self.mode_combo.clear()
-        self.mode_combo.addItems([self.tr("OcrSettingsPage", "Standard Overlay"), self.tr("OcrSettingsPage", "Style-Cloning Patch (WIP)")])
-        self.mode_combo.setCurrentIndex(current_idx)
 
     def load_settings(self):
-        self.retranslate_ui()
-        source_code = self.config_manager.get("ocr_source_language", "auto")
-        target_code = self.config_manager.get("ocr_target_language", "KO")
-        if (idx := self.source_lang_combo.findData(source_code)) != -1: self.source_lang_combo.setCurrentIndex(idx)
-        if (idx := self.target_lang_combo.findData(target_code)) != -1: self.target_lang_combo.setCurrentIndex(idx)
-        self.mode_combo.setCurrentIndex(0 if self.config_manager.get("ocr_mode", "overlay") == "overlay" else 1)
+        ocr_mode = self.config_manager.get('ocr_mode', 'Standard Overlay')
+        ocr_source = self.config_manager.get('ocr_source_lang', 'Auto Detect')
+        ocr_target = self.config_manager.get('ocr_target_lang', 'Korean')
+        
+        self.mode_combo.setCurrentText(ocr_mode)
+        self.source_lang_combo.setCurrentText(ocr_source)
+        self.target_lang_combo.setCurrentText(ocr_target)
 
     def save_settings(self):
-        self.config_manager.set("ocr_source_language", self.source_lang_combo.currentData())
-        self.config_manager.set("ocr_target_language", self.target_lang_combo.currentData())
-        self.config_manager.set("ocr_mode", "overlay" if self.mode_combo.currentIndex() == 0 else "patch")
+        self.config_manager.set('ocr_mode', self.mode_combo.currentText())
+        self.config_manager.set('ocr_source_lang', self.source_lang_combo.currentText())
+        self.config_manager.set('ocr_target_lang', self.target_lang_combo.currentText())
+        logging.info("OCR 언어 및 모드 설정 저장 완료")
+
 
 class SttSettingsPage(BaseSettingsPage):
+    """음성 번역(STT) 설정을 담당하는 페이지"""
     def __init__(self, config_manager: ConfigManager):
         super().__init__(config_manager)
         self.title_label = TitleLabel(); self.desc_label = DescriptionLabel()
         self.add_widget(self.title_label); self.add_widget(self.desc_label)
+        
         self.lang_card = SettingsCard(); self.source_lang_combo = QComboBox(); self.target_lang_combo = QComboBox()
         lang_layout = QHBoxLayout(); self.source_lang_label = QLabel(); self.target_lang_label = QLabel()
         lang_layout.addWidget(self.source_lang_label); lang_layout.addWidget(self.source_lang_combo); lang_layout.addStretch(1)
@@ -253,13 +277,17 @@ class SttSettingsPage(BaseSettingsPage):
         self.target_lang_label.setText(self.tr("SttSettingsPage", "Target Language:"))
 
         for combo in [self.source_lang_combo, self.target_lang_combo]:
-            combo.blockSignals(True); current_data = combo.currentData(); combo.clear()
+            combo.blockSignals(True)
+            current_data = combo.currentData()
+            combo.clear()
+            
         for name, code in SUPPORTED_DEEPL_LANGUAGES.items():
-            tr_name = self.tr("SUPPORTED_LANGUAGES", name)
-            self.source_lang_combo.addItem(tr_name, code)
-            if code != 'auto': self.target_lang_combo.addItem(tr_name, code)
-        for combo, data in [(self.source_lang_combo, self.source_lang_combo.currentData()), (self.target_lang_combo, self.target_lang_combo.currentData())]:
-            if (idx := combo.findData(data)) != -1: combo.setCurrentIndex(idx)
+            tr_name = self.tr("SUPPORTED_LANGUAGES", name) 
+            self.source_lang_combo.addItem(tr_name, name)
+            if code != 'auto': self.target_lang_combo.addItem(tr_name, name)
+
+        for combo in [self.source_lang_combo, self.target_lang_combo]:
+            if (idx := combo.findData(combo.currentData())) != -1: combo.setCurrentIndex(idx)
             combo.blockSignals(False)
 
         self.vad_card.title_label.setText(self.tr("SttSettingsPage", "Voice Activity Detection (VAD) Sensitivity"))
@@ -269,27 +297,29 @@ class SttSettingsPage(BaseSettingsPage):
         self.silence_spinbox.setSuffix(self.tr("SttSettingsPage", " s"))
 
     def load_settings(self):
-        self.retranslate_ui()
-        source_code = self.config_manager.get("stt_source_language", "auto")
-        target_code = self.config_manager.get("stt_target_language", "KO")
-        if (idx := self.source_lang_combo.findData(source_code)) != -1: self.source_lang_combo.setCurrentIndex(idx)
-        if (idx := self.target_lang_combo.findData(target_code)) != -1: self.target_lang_combo.setCurrentIndex(idx)
-        self.vad_slider.setValue(self.config_manager.get("vad_sensitivity", 3))
-        self.silence_spinbox.setValue(int(self.config_manager.get("silence_threshold_s", 1.0)))
+        stt_source = self.config_manager.get('stt_source_lang', 'Auto Detect')
+        stt_target = self.config_manager.get('stt_target_lang', 'Korean')
+        self.source_lang_combo.setCurrentText(self.tr("SUPPORTED_LANGUAGES", stt_source))
+        self.target_lang_combo.setCurrentText(self.tr("SUPPORTED_LANGUAGES", stt_target))
 
     def save_settings(self):
-        self.config_manager.set("stt_source_language", self.source_lang_combo.currentData())
-        self.config_manager.set("stt_target_language", self.target_lang_combo.currentData())
-        self.config_manager.set("vad_sensitivity", self.vad_slider.value())
-        self.config_manager.set("silence_threshold_s", float(self.silence_spinbox.value()))
+        self.config_manager.set('stt_source_lang', self.source_lang_combo.currentData())
+        self.config_manager.set('stt_target_lang', self.target_lang_combo.currentData())
+        logging.info("STT 언어 설정 저장 완료")
+
 
 class StyleSettingsPage(BaseSettingsPage):
+    """오버레이 스타일 설정을 담당하는 페이지"""
     def __init__(self, config_manager: ConfigManager):
         super().__init__(config_manager)
-        self.title_label = TitleLabel(); self.desc_label = DescriptionLabel()
-        self.add_widget(self.title_label); self.add_widget(self.desc_label)
-        self.stt_card = SettingsCard(); self.add_widget(self.stt_card)
-        self.ocr_card = SettingsCard(); self.add_widget(self.ocr_card)
+        self.title_label = TitleLabel()
+        self.desc_label = DescriptionLabel()
+        self.add_widget(self.title_label)
+        self.add_widget(self.desc_label)
+        self.stt_card = SettingsCard()
+        self.add_widget(self.stt_card)
+        self.ocr_card = SettingsCard()
+        self.add_widget(self.ocr_card)
 
     def retranslate_ui(self):
         self.title_label.setText(self.tr("StyleSettingsPage", "Overlay Style Settings"))
@@ -301,6 +331,7 @@ class StyleSettingsPage(BaseSettingsPage):
     def save_settings(self): pass
 
 class SetupWindow(QWidget):
+    """전체 설정 창을 관리하는 메인 위젯"""
     closed = Signal()
 
     def __init__(self, config_manager: ConfigManager, initial_page_index=0):
@@ -309,7 +340,10 @@ class SetupWindow(QWidget):
         self.translator = QTranslator(self)
         self.setObjectName("setupWindow")
         self.setMinimumSize(960, 600)
-        self._init_ui(); self._add_pages()
+        
+        self._init_ui()
+        self._add_pages()
+        
         self.navigation_bar.currentRowChanged.connect(self.pages_stack.setCurrentIndex)
         self.navigation_bar.currentRowChanged.connect(self.update_navigation_style)
         self.program_page.language_changed.connect(self.change_language)
@@ -317,6 +351,7 @@ class SetupWindow(QWidget):
         self.save_button.clicked.connect(self.save_and_close)
         self.cancel_button.clicked.connect(self.close)
         self.reset_button.clicked.connect(self.reset_settings)
+        
         self.load_settings()
         self.apply_stylesheet()
         self.retranslate_ui()
@@ -414,6 +449,8 @@ class SetupWindow(QWidget):
         lang_code = self.program_page.lang_combo.currentData()
         
         app = QApplication.instance()
+        if app is None: return
+        
         app.removeTranslator(self.translator)
         if self.translator.load(resource_path(f'translations/ariel_{lang_code}.qm')):
             app.installTranslator(self.translator)
