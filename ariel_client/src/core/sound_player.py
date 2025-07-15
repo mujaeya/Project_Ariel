@@ -3,83 +3,77 @@ import logging
 from PySide6.QtCore import QObject, QUrl, Slot
 from PySide6.QtMultimedia import QSoundEffect
 
+from ..config_manager import ConfigManager
 from ..utils import resource_path
+
+logger = logging.getLogger(__name__)
 
 class SoundPlayer(QObject):
     """
-    [비동기 로딩 처리] 지정된 오디오 파일을 안정적으로 재생하는 유틸리티 클래스.
-    QSoundEffect의 비동기 로딩 문제를 해결합니다.
+    설정과 연동하여 알림음 볼륨을 적용하고,
+    지정된 오디오 파일을 안정적으로 재생하는 유틸리티 클래스.
     """
-    def __init__(self, parent=None):
+    def __init__(self, config_manager: ConfigManager, parent: QObject | None = None):
         super().__init__(parent)
-        # 여러 사운드를 동시에 재생할 수 있도록 각 파일 경로에 대해 별도의 인스턴스를 관리합니다.
+        self.config_manager = config_manager
         self.sound_effects = {}
+        self.update_volume() # [추가] 초기 볼륨 설정
 
-    def play(self, file_path: str, volume: float = 1.0):
+    def play(self, sound_path_key: str):
         """
-        지정된 경로의 사운드를 재생합니다.
-        내부적으로 로딩 상태를 확인하여, 로딩이 완료된 후에만 재생을 시도합니다.
+        설정 키에 해당하는 사운드 파일 경로를 찾아 현재 볼륨을 적용하여 재생합니다.
+        sound_path_key: config에 저장된 사운드 파일의 키 (예: "sound_stt_start")
         """
-        if not file_path:
+        sound_path = self.config_manager.get(sound_path_key)
+
+        if not sound_path:
+            logger.warning(f"Sound key '{sound_path_key}' not found in settings.")
             return
 
         try:
-            # resource_path를 통해 절대 경로 획득
-            absolute_path = resource_path(file_path)
+            absolute_path = resource_path(sound_path)
 
-            # 이전에 로드한 적 없는 새로운 사운드인 경우에만 인스턴스를 생성하고 로드합니다.
             if absolute_path not in self.sound_effects:
                 effect = QSoundEffect(self)
                 effect.setSource(QUrl.fromLocalFile(absolute_path))
-                
-                # [핵심] 여기서 play()를 바로 호출하지 않습니다.
-                # 대신, statusChanged 시그널을 사용하여 로딩 상태를 감지합니다.
-                # 하지만, 즉시 재생을 시도해야 하므로 로딩이 완료되면 재생될 수 있도록 합니다.
-                # 인스턴스를 딕셔너리에 저장합니다.
+                effect.statusChanged.connect(self._play_when_ready)
                 self.sound_effects[absolute_path] = effect
             
             effect = self.sound_effects[absolute_path]
-            effect.setVolume(min(max(0.0, volume), 1.0))
+            
+            # [수정] 볼륨 설정은 update_volume 슬롯에서 중앙 관리하므로 여기서는 설정만 확인
+            volume_float = max(0.0, min(1.0, self.current_volume / 100.0))
+            effect.setVolume(volume_float)
 
-            # [핵심 로직] 로딩 상태에 따라 다르게 처리
             if effect.status() == QSoundEffect.Status.Ready:
-                # 로딩이 이미 완료된 상태라면 즉시 재생합니다.
                 effect.play()
-            elif effect.status() == QSoundEffect.Status.Loading:
-                # 로딩 중이라면, 로딩이 끝났을 때 재생되도록 슬롯을 연결합니다.
-                # 단, 한 번만 연결되도록 기존 연결을 끊고 다시 연결합니다.
-                try:
-                    effect.statusChanged.disconnect(self._play_when_ready)
-                except RuntimeError:
-                    pass # 연결이 없으면 오류 발생, 무시
-                effect.statusChanged.connect(self._play_when_ready)
             elif effect.status() == QSoundEffect.Status.Error:
-                 logging.error(f"알림음 파일 디코딩 오류 발생: '{absolute_path}'. 파일 형식을 확인해주세요 (권장: 44100Hz, 16-bit PCM WAV).")
-            else: # Null 상태 등
-                 # 로드를 시작하지 않은 상태일 수 있으므로 로드를 시도합니다.
-                 effect.setSource(QUrl.fromLocalFile(absolute_path))
-
+                 logger.error(f"Error decoding sound file: '{absolute_path}'.")
 
         except Exception as e:
-            logging.error(f"알림음 재생 중 예외 발생: '{file_path}'. 오류: {e}", exc_info=True)
+            logger.error(f"Exception while playing sound '{sound_path_key}': {e}", exc_info=True)
+
+    @Slot()
+    def update_volume(self):
+        """[추가] 설정 파일에서 현재 볼륨 값을 읽어와 모든 사운드 이펙트에 적용합니다."""
+        # [수정] 설정 키 변경: sound_master_volume -> notification_volume
+        self.current_volume = self.config_manager.get("notification_volume", 80)
+        volume_float = max(0.0, min(1.0, self.current_volume / 100.0))
+        
+        for effect in self.sound_effects.values():
+            effect.setVolume(volume_float)
+        logger.debug(f"Sound volume updated to: {self.current_volume}%")
+
 
     @Slot()
     def _play_when_ready(self):
-        """
-        QSoundEffect의 상태가 Ready로 변경되었을 때만 play()를 호출하는 슬롯.
-        """
-        # 시그널을 보낸 sender(QSoundEffect 인스턴스)를 가져옵니다.
+        """QSoundEffect의 상태가 Ready로 변경되었을 때만 play()를 호출하는 슬롯."""
         effect = self.sender()
-        if not effect:
-            return
-
-        if effect.status() == QSoundEffect.Status.Ready:
-            logging.info(f"알림음 로드 완료, 재생 시작: {effect.source().toLocalFile()}")
+        if effect and isinstance(effect, QSoundEffect) and effect.status() == QSoundEffect.Status.Ready:
+            logger.info(f"Sound loaded, playing: {effect.source().toLocalFile()}")
             effect.play()
-            # 재생 후에는 더 이상 시그널을 받을 필요가 없으므로 연결을 끊습니다.
             try:
+                # [개선] 재생 후에는 더 이상 신호를 받을 필요가 없으므로 연결을 끊음
                 effect.statusChanged.disconnect(self._play_when_ready)
-            except RuntimeError:
-                pass
-        elif effect.status() == QSoundEffect.Status.Error:
-            logging.error(f"알림음 파일 비동기 로딩 중 오류: {effect.source().toLocalFile()}")
+            except (RuntimeError, TypeError):
+                pass # 이미 끊어졌거나 유효하지 않은 객체면 무시
