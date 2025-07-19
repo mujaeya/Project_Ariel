@@ -101,7 +101,7 @@ class TrayIcon(QObject):
         self.audio_processor.moveToThread(self.audio_thread)
         
         # [수정] TranslationWorker의 슬롯에 맞게 채널 수를 전달
-        self.audio_processor.audio_chunk_ready.connect(self.worker.process_stt_audio)
+        self.audio_processor.audio_processed.connect(self.worker.process_stt_audio)
         self.audio_processor.status_updated.connect(lambda msg: self.overlay_manager.add_system_message_to_stt(f"Audio: {msg}"))
         self.audio_processor.finished.connect(self.audio_thread.quit)
         self.audio_thread.finished.connect(self.on_audio_thread_finished)

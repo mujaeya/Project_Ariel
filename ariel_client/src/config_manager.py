@@ -37,7 +37,7 @@ class ConfigManager(QObject):
             
             # 오디오 설정
             "audio_input_device_index": None,
-            "use_vad": True,  # [추가] VAD 사용 여부
+            "use_vad": False,
             "vad_sensitivity": 3,
             "silence_threshold_s": 1.5, # [수정] 기본값 1.0 -> 1.5
             "min_audio_length_s": 0.5,
