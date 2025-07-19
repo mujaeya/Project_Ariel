@@ -13,15 +13,18 @@ from ..api_client import APIClient
 logger = logging.getLogger(__name__)
 
 def aggregate_line_data(group):
-    """Pandas 그룹의 텍스트를 합치고 경계 상자를 계산합니다."""
+    """Pandas 그룹의 텍스트를 합치고 경계 상자와 신뢰도를 계산합니다."""
     text = ' '.join(group['text'].astype(str))
+    conf = group['conf'].mean()
     x0 = group['left'].min()
     y0 = group['top'].min()
     x1 = (group['left'] + group['width']).max()
     y1 = (group['top'] + group['height']).max()
+    
     # 유효한 사각형인지 확인
     if x1 > x0 and y1 > y0:
-        return pd.Series({'text': text, 'x0': x0, 'y0': y0, 'x1': x1, 'y1': y1})
+        rect = QRect(x0, y0, x1 - x0, y1 - y0)
+        return pd.Series({'text': text, 'conf': conf, 'rect': rect})
     return None
 
 class TranslationWorker(QObject):
@@ -98,68 +101,70 @@ class TranslationWorker(QObject):
 
         except Exception as e:
             logger.error(f"STT 오디오 처리 중 예외 발생: {e}", exc_info=True)
-            self.error_occurred.emit(f"STT 처리 오류: {e}")
+            self.error_occurred.emit(f"STT Error: {e}")
 
-    # Slot 시그니처에서 original_rect 제거
     @Slot(bytes)
     def process_ocr_image(self, image_bytes: bytes):
         try:
-            target_lang_code = self._resolve_target_language(self.config_manager.get('ocr_target_language', 'auto'))
-            source_lang_code = self.config_manager.get('ocr_source_language', 'auto')
+            source_lang = self.config_manager.get("ocr_source_lang", "auto")
+            target_lang = self._resolve_target_language(self.config_manager.get('ocr_target_language', 'auto'))
             
-            logger.info(f"OCR 이미지 처리 시작 (크기: {len(image_bytes)} bytes, 언어: {source_lang_code}->{target_lang_code})")
+            logger.info(f"OCR 이미지 데이터 수신 (크기: {len(image_bytes)} bytes), Lang: {source_lang}->{target_lang}")
             self.status_updated.emit("이미지에서 텍스트 추출 중...")
 
             image = Image.open(io.BytesIO(image_bytes))
             
-            # Tesseract에 여러 언어를 동시에 지정
+            # Tesseract에 여러 언어를 동시에 지정하여 검출률 향상
             tess_langs = 'eng+jpn+kor' 
             ocr_data = pytesseract.image_to_data(image, lang=tess_langs, output_type=pytesseract.Output.DATAFRAME)
             
-            min_conf = self.config_manager.get("ocr_min_confidence", 50)
+            min_conf = self.config_manager.get("ocr_min_confidence", 30)
             ocr_data = ocr_data[ocr_data.conf > min_conf]
 
             if ocr_data.empty:
-                logger.info(f"신뢰도 {min_conf} 이상의 텍스트를 찾지 못했습니다.")
+                logger.warning(f"OCR 결과, 신뢰도 {min_conf} 이상의 유효한 텍스트를 찾지 못했습니다.")
                 self.status_updated.emit("")
+                self.ocr_patches_ready.emit([]) # 빈 리스트 방출
                 return
 
+            # 줄 단위로 텍스트 묶기
             line_data = ocr_data.groupby(['page_num', 'block_num', 'par_num', 'line_num']).apply(aggregate_line_data).dropna().reset_index(drop=True)
-            if line_data.empty:
-                logger.info("줄 단위로 텍스트를 묶었으나 유효한 데이터가 없습니다.")
-                self.status_updated.emit("")
-                return
 
-            logger.info(f"{len(line_data)}개의 텍스트 라인 감지. 번역을 시작합니다.")
+            if line_data.empty:
+                logger.warning("신뢰도 필터링 후 남은 텍스트가 없습니다.")
+                self.status_updated.emit("")
+                self.ocr_patches_ready.emit([]) # 빈 리스트 방출
+                return
+            
+            logger.info(f"OCR 성공. {len(line_data)}개의 텍스트 라인 감지.")
             self.status_updated.emit(f"{len(line_data)}줄 번역 중...")
 
-            patches_data = []
+            texts_to_translate = line_data['text'].tolist()
             
             # [수정] 'auto' 소스 언어를 None으로 변환하여 API 오류 방지
-            source_lang_param = source_lang_code if source_lang_code != 'auto' else None
+            source_lang_param = source_lang if source_lang != 'auto' else None
+            
+            logger.debug(f"번역 요청: {len(texts_to_translate)}개 텍스트, {source_lang_param or 'auto'} -> {target_lang}")
+            translated_texts = self.mt_engine.translate_text(texts_to_translate, source_lang_param, target_lang)
 
-            for _, row in line_data.iterrows():
-                text_to_translate = row['text']
-                if text_to_translate and not text_to_translate.isspace():
-                    logger.debug(f"OCR 번역 요청: '{text_to_translate}' ({source_lang_param or 'auto'} -> {target_lang_code})")
-                    translated_text = self.mt_engine.translate_text(text_to_translate, source_lang_param, target_lang_code)
-                    if translated_text:
-                        # OCR 결과의 좌표는 이미지 자체의 상대 좌표이므로 그대로 사용
-                        patch_rect = QRect(int(row['x0']), int(row['y0']), int(row['x1'] - row['x0']), int(row['y1'] - row['y0']))
-                        patches_data.append({
-                            "original": text_to_translate,
-                            "translated": translated_text,
-                            "rect": patch_rect # 이 좌표는 ocr_capturer가 캡처한 영역 기준의 상대 좌표
-                        })
+            if not translated_texts:
+                logger.error("번역 엔진이 결과를 반환하지 않았습니다.")
+                self.error_occurred.emit("번역에 실패했습니다. API 키와 사용량을 확인하세요.")
+                return
+
+            patches = []
+            for index, row in line_data.iterrows():
+                if index < len(translated_texts) and translated_texts[index]:
+                    patches.append({
+                        'original': row['text'],
+                        'translated': translated_texts[index],
+                        'rect': row['rect']
+                    })
             
-            if patches_data:
-                logger.info(f"{len(patches_data)}개의 번역 패치를 생성하여 UI로 보냅니다.")
-                self.ocr_patches_ready.emit(patches_data)
-            else:
-                logger.info("번역 결과가 없거나 모든 번역에 실패했습니다.")
-            
+            logger.info(f"{len(patches)}개의 번역 패치 생성 완료.")
+            self.ocr_patches_ready.emit(patches)
             self.status_updated.emit("") # 작업 완료 후 상태 메시지 초기화
 
         except Exception as e:
             logger.error(f"OCR 이미지 처리 중 예외 발생: {e}", exc_info=True)
-            self.error_occurred.emit(f"OCR 처리 오류: {e}")
+            self.error_occurred.emit(f"OCR Error: {e}")
