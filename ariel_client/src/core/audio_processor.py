@@ -1,116 +1,64 @@
-# F:/projects/Project_Ariel/ariel_client/src/core/audio_processor.py (이 코드로 전체 교체)
-
+# ariel_client/src/core/audio_processor.py (수정 후)
 import pyaudio
 import webrtcvad
 import logging
-from PySide6.QtCore import QObject, Signal, Slot
+from collections import deque
+from PySide6.QtCore import QObject, Signal, Slot, QThread
+
+from ..config_manager import ConfigManager
 
 logger = logging.getLogger(__name__)
 
 class AudioProcessor(QObject):
     """
-    [v3.0 최종 안정화] 기본 출력 장치에 대한 루프백을 직접 탐색하는 기능으로 개선하여,
-    모든 사용자 환경에 안정적으로 대응하는 범용 WASAPI 루프백 오디오 프로세서.
+    안정성과 디버깅이 강화된 오디오 프로세서.
+    WASAPI 루프백, Stereo Mix, 기본 마이크 순으로 장치를 탐색하며,
+    VAD(음성 구간 감지)를 통해 유효한 오디오 청크만 전달합니다.
     """
     audio_chunk_ready = Signal(bytes)
-    stopped = Signal()
     status_updated = Signal(str)
-    finished = Signal()
+    finished = Signal() # [중요] 스레드 완전 종료를 알리는 시그널
 
-    def __init__(self, config_manager, parent=None):
+    def __init__(self, config_manager: ConfigManager, parent=None):
         super().__init__(parent)
-        self.config = config_manager.get_active_profile()
+        self.config_manager = config_manager
         self._is_running = False
         self.p = None
         self.stream = None
-        
-        # VAD 설정: 민감도는 1 (Least aggressive) ~ 3 (Most aggressive)
-        self.vad = webrtcvad.Vad(self.config.get("vad_sensitivity", 3))
-        self.SUPPORTED_RATES = [48000, 32000, 16000, 8000] # 선호도 순
-        
+
+        # [수정] config_manager.get()을 사용하여 설정값을 직접 로드 (AttributeError 해결)
+        self.vad_sensitivity = self.config_manager.get("vad_sensitivity", 3)
+        self.silence_threshold_s = self.config_manager.get("silence_threshold_s", 1.0)
+        self.min_audio_length_s = self.config_manager.get("min_audio_length_s", 0.5)
+
+        self.vad = webrtcvad.Vad(self.vad_sensitivity)
+        self.SUPPORTED_RATES = [48000, 32000, 16000, 8000]
         self.sample_rate = 16000
-        self.chunk_duration_ms = 30 # VAD는 10, 20, 30ms 조각만 지원
-        self.chunk_size = 0
-        self.channels = 0
+        self.chunk_duration_ms = 30
+        self.bytes_per_sample = 2  # 16-bit audio
 
-        self.silence_threshold_s = self.config.get("silence_threshold_s", 1.0)
-        self.min_audio_length_s = self.config.get("min_audio_length_s", 0.5)
-        logger.info("AudioProcessor (PyAudio/VAD/Robust) 초기화 완료.")
-
-    def _find_wasapi_loopback_device(self):
-        """
-        [개선] WASAPI 루프백 장치를 찾는 가장 안정적인 방법.
-        1. 기본 오디오 출력 장치를 찾습니다.
-        2. 해당 출력 장치에 대한 '루프백' 입력 장치를 직접 찾습니다.
-        3. 실패 시 '스테레오 믹스'와 같은 일반적인 이름으로 폴백합니다.
-        """
-        try:
-            self.p = pyaudio.PyAudio()
-            wasapi_info = self.p.get_host_api_info_by_type(pyaudio.paWASAPI)
-        except Exception as e:
-            logger.error(f"PyAudio WASAPI 호스트 정보를 가져올 수 없습니다: {e}")
-            self.status_updated.emit("오디오 시스템 오류")
-            return None
-
-        try:
-            # 1. 시스템의 기본 *출력* 장치를 가져옵니다.
-            default_output_device = self.p.get_default_output_device_info()
-            logger.info(f"시스템 기본 출력 장치: '{default_output_device['name']}'")
-        except IOError:
-            logger.error("기본 출력 장치를 찾을 수 없습니다. 스피커/헤드폰이 연결되어 있는지 확인하세요.")
-            self.status_updated.emit("출력 장치 없음")
-            return None
-
-        # 2. 모든 WASAPI *입력* 장치를 스캔하여 '루프백' 장치를 찾습니다.
-        for i in range(self.p.get_device_count()):
-            dev = self.p.get_device_info_by_index(i)
-            # 입력 채널이 있고, WASAPI 장치이며, 이름에 'loopback'이 포함된 경우
-            if dev.get('maxInputChannels', 0) > 0 and dev.get('hostApi') == wasapi_info['index']:
-                if 'loopback' in dev.get('name', '').lower():
-                    logger.info(f"✅ [1단계 성공] 루프백 장치 발견: {dev['name']}")
-                    return dev
-
-        # 3. 루프백을 못 찾았을 경우, '스테레오 믹스' 등의 이름으로 2차 탐색 (Fallback)
-        logger.warning("1단계 탐색 실패. 'Stereo Mix' 또는 '스테레오 믹스' 장치를 찾습니다...")
-        for i in range(self.p.get_device_count()):
-            dev = self.p.get_device_info_by_index(i)
-            if dev.get('maxInputChannels', 0) > 0 and dev.get('hostApi') == wasapi_info['index']:
-                name_lower = dev.get('name', '').lower()
-                if 'stereo mix' in name_lower or '스테레오 믹스' in name_lower:
-                    logger.info(f"✅ [2단계 성공] 'Stereo Mix' 장치 발견: {dev['name']}")
-                    return dev
-
-        logger.error("시스템에서 유효한 WASAPI 루프백 장치를 찾을 수 없습니다. 윈도우 사운드 설정에서 '스테레오 믹스'를 '사용'으로 설정했는지 확인해주세요.")
-        self.status_updated.emit("루프백 장치 없음")
-        return None
+        logger.info(f"AudioProcessor 초기화 완료 (VAD 민감도: {self.vad_sensitivity})")
 
     @Slot()
     def start_processing(self):
-        device_info = self._find_wasapi_loopback_device()
-        if not device_info:
-            self.stop()
+        logger.info("오디오 처리 시작 요청...")
+        if self._is_running:
+            logger.warning("오디오 프로세서가 이미 실행 중입니다.")
             return
 
-        # 자동 샘플 레이트 협상
-        supported_rate = None
-        for rate in self.SUPPORTED_RATES:
-            try:
-                if self.p.is_format_supported(rate, input_device=device_info['index'], input_channels=device_info['maxInputChannels'], input_format=pyaudio.paInt16):
-                    supported_rate = rate
-                    logger.info(f"✅ 오디오 장치가 {rate}Hz 샘플링을 지원합니다. 이 설정으로 진행합니다.")
-                    break
-            except ValueError:
-                continue
+        self._is_running = True
+        QThread.msleep(10) # is_running 플래그가 확실히 적용되도록 잠시 대기
         
-        if not supported_rate:
-            logger.error(f"오디오 장치 '{device_info['name']}'가 VAD 요구 샘플 레이트({self.SUPPORTED_RATES})를 지원하지 않습니다.")
-            self.status_updated.emit("지원되지 않는 오디오 장치")
-            self.stop()
+        self.p = pyaudio.PyAudio()
+        device_index, self.sample_rate, self.channels = self._find_audio_device()
+
+        if device_index is None:
+            self.status_updated.emit("오류: 사용 가능한 오디오 장치 없음")
+            logger.error("사용 가능한 오디오 장치를 찾지 못하여 처리를 중단합니다.")
+            self.stop() # 실패 시 자원 정리 및 finished 시그널 방출
             return
 
-        self.sample_rate = supported_rate
-        self.chunk_size = int(self.sample_rate * self.chunk_duration_ms / 1000)
-        self.channels = device_info['maxInputChannels']
+        logger.info(f"오디오 장치 설정 완료: Rate={self.sample_rate}Hz, Channels={self.channels}")
 
         try:
             self.stream = self.p.open(
@@ -118,77 +66,150 @@ class AudioProcessor(QObject):
                 channels=self.channels,
                 rate=self.sample_rate,
                 input=True,
-                frames_per_buffer=self.chunk_size,
-                input_device_index=device_info['index']
+                input_device_index=device_index,
+                frames_per_buffer=int(self.sample_rate * self.chunk_duration_ms / 1000)
             )
-        except Exception as e:
-            logger.error(f"PyAudio 스트림 시작 오류: {e}", exc_info=True)
-            self.status_updated.emit("오디오 장치 열기 실패")
-            self.stop()
-            return
+            logger.info(f"오디오 스트림 시작됨 (장치: {self.p.get_device_info_by_index(device_index)['name']})")
+            self.status_updated.emit("듣는 중...")
             
-        self._is_running = True
-        voiced_frames, silence_counter = [], 0
-        self.status_updated.emit("음성 듣는 중...")
-        logger.info(f"오디오 스트림 시작 (장치: {device_info['name']}, 샘플링: {self.sample_rate}Hz, 채널: {self.channels})")
+            # 메인 루프 실행
+            self.process_audio_stream()
+
+        except Exception as e:
+            logger.error(f"오디오 스트림 열기 실패: {e}", exc_info=True)
+            self.status_updated.emit("오류: 오디오 장치를 열 수 없습니다")
+            self.stop()
+
+    def process_audio_stream(self):
+        """오디오 스트림을 읽고 VAD를 통해 음성 구간을 감지하여 처리하는 메인 루프"""
+        silence_chunks = int((self.silence_threshold_s * 1000) / self.chunk_duration_ms)
+        min_audio_chunks = int((self.min_audio_length_s * 1000) / self.chunk_duration_ms)
         
+        ring_buffer = deque(maxlen=silence_chunks)
+        voiced_frames = []
+        is_speaking = False
+
+        logger.debug("오디오 스트림 처리 루프 진입...")
         while self._is_running:
             try:
-                frame_data = self.stream.read(self.chunk_size, exception_on_overflow=False)
+                chunk = self.stream.read(int(self.sample_rate * self.chunk_duration_ms / 1000), exception_on_overflow=False)
                 
-                # 스테레오(2ch) 데이터를 모노로 변환 (Whisper API는 모노를 선호)
-                mono_frame = frame_data
-                if self.channels == 2:
-                    # 왼쪽 채널만 사용하거나 (frame_data[0::4] + frame_data[1::4]),
-                    # 단순 슬라이싱으로 바이트 수를 줄일 수 있습니다.
-                    # 여기서는 바이트 수를 줄이는 간단한 방법을 사용합니다.
-                    mono_frame = frame_data[::2]
+                mono_chunk = self._to_mono(chunk) if self.channels > 1 else chunk
                 
-                # VAD(음성 구간 감지)는 16-bit, 모노, 특정 샘플링 레이트의 PCM 데이터에서 가장 잘 작동합니다.
-                # mono_frame의 길이가 VAD가 처리 가능한지 확인하는 것이 좋습니다.
-                if len(mono_frame) != (self.sample_rate * self.chunk_duration_ms // 1000) * 2:
-                    continue # 데이터 길이가 맞지 않으면 건너뛰기
+                # VAD는 특정 바이트 길이의 청크가 필요함
+                if len(mono_chunk) != int(self.sample_rate * (self.chunk_duration_ms / 1000.0) * self.bytes_per_sample / self.channels):
+                     continue
 
-                if self.vad.is_speech(mono_frame, self.sample_rate):
-                    voiced_frames.append(mono_frame)
-                    silence_counter = 0
-                else:
-                    silence_counter += 1
-                
-                silence_duration_s = (silence_counter * self.chunk_duration_ms) / 1000.0
-                if voiced_frames and silence_duration_s > self.silence_threshold_s:
-                    audio_data = b''.join(voiced_frames)
-                    audio_duration_s = len(audio_data) / (self.sample_rate * 2)
-                    if audio_duration_s >= self.min_audio_length_s:
+                is_speech = self.vad.is_speech(mono_chunk, self.sample_rate)
+
+                if is_speech:
+                    if not is_speaking:
+                        logger.debug("음성 감지 시작됨.")
+                        self.status_updated.emit("음성 감지됨...")
+                        is_speaking = True
+                        voiced_frames.extend(list(ring_buffer))
+                        ring_buffer.clear()
+                    
+                    voiced_frames.append(chunk)
+
+                elif not is_speech and is_speaking:
+                    logger.debug(f"음성 감지 종료. 녹음된 프레임 수: {len(voiced_frames)}")
+                    is_speaking = False
+                    self.status_updated.emit("듣는 중...")
+                    
+                    if len(voiced_frames) > min_audio_chunks:
+                        audio_data = b''.join(voiced_frames)
+                        logger.info(f"유효한 오디오 데이터 생성 (길이: {len(audio_data)} bytes), STT 요청 준비.")
                         self.audio_chunk_ready.emit(audio_data)
-                    voiced_frames, silence_counter = [], 0
+                    else:
+                        logger.info(f"녹음된 음성이 너무 짧아 무시합니다 (프레임: {len(voiced_frames)} < 최소: {min_audio_chunks}).")
+                    
+                    voiced_frames.clear()
+                    ring_buffer.clear()
+                
+                else: # 말하고 있지 않은 상태 (조용한 상태)
+                    ring_buffer.append(chunk)
+
+                QThread.msleep(1)
+
             except IOError as e:
                 logger.error(f"오디오 스트림 읽기 오류: {e}")
-                self.status_updated.emit("오디오 장치 연결 끊김")
+                self.status_updated.emit("오류: 오디오 장치 연결 끊김")
+                self._is_running = False # 루프 중단
+            except Exception as e:
+                logger.error(f"오디오 처리 중 예외 발생: {e}", exc_info=True)
                 self._is_running = False
-        
+
+        logger.info("오디오 처리 루프가 종료되었습니다.")
+        # 루프가 끝나면 항상 stop()을 호출하여 자원을 정리
         self.stop()
+
+    def _to_mono(self, chunk: bytes) -> bytes:
+        """16-bit 스테레오 오디오 바이트를 모노로 변환합니다."""
+        return chunk[::2]
 
     @Slot()
     def stop(self):
-        if not self._is_running and self.stream is None and self.p is None: return
+        logger.info("오디오 처리 중지 요청 수신...")
         self._is_running = False
+        
+        # 스트림과 PyAudio 객체가 아직 살아있을 때만 정리 시도
         if self.stream:
-            try:
-                if self.stream.is_active(): self.stream.stop_stream()
-                self.stream.close()
-            except Exception as e:
-                logger.error(f"PyAudio 스트림 정리 중 오류 발생: {e}")
-            finally:
-                self.stream = None
+            if not self.stream.is_stopped():
+                self.stream.stop_stream()
+            self.stream.close()
+            logger.debug("오디오 스트림이 닫혔습니다.")
+        self.stream = None
+
         if self.p:
             self.p.terminate()
-            self.p = None
+            logger.debug("PyAudio가 종료되었습니다.")
+        self.p = None
         
-        # 시그널 방출 순서 조정
-        self.stopped.emit()
+        logger.info("오디오 프로세서가 안전하게 중지되고 'finished' 시그널을 방출합니다.")
         self.finished.emit()
-        logger.info("AudioProcessor가 안전하게 중지되었습니다.")
 
-    def __del__(self):
-        logger.debug("AudioProcessor 인스턴스가 소멸됩니다.")
+    def _find_audio_device(self):
+        logger.info("사용 가능한 오디오 장치를 검색합니다...")
+        try:
+            # 1단계: 'Stereo Mix' 또는 '스테레오 믹스' 이름으로 장치 검색
+            for i in range(self.p.get_device_count()):
+                device = self.p.get_device_info_by_index(i)
+                if device.get('maxInputChannels', 0) > 0:
+                    name_lower = device.get('name', '').lower()
+                    if 'stereo mix' in name_lower or '스테레오 믹스' in name_lower:
+                        logger.info(f"✅ [1단계 성공] 'Stereo Mix' 장치 발견: {device['name']}")
+                        for rate in self.SUPPORTED_RATES:
+                             if self.p.is_format_supported(rate, input_device=device['index'], input_channels=device['maxInputChannels'], input_format=pyaudio.paInt16):
+                                logger.info(f"✅ {rate}Hz 샘플링 지원 확인.")
+                                return device['index'], rate, device['maxInputChannels']
+            
+            # 2단계: WASAPI 루프백 장치 검색 (Windows 전용)
+            try:
+                wasapi_info = self.p.get_host_api_info_by_type(pyaudio.paWASAPI)
+                default_output = self.p.get_default_output_device_info()
+                loopback_name = default_output['name'] + ' (loopback)'
+                
+                for i in range(self.p.get_device_count()):
+                     device = self.p.get_device_info_by_index(i)
+                     if device['hostApi'] == wasapi_info['index'] and 'loopback' in device['name'].lower():
+                        logger.info(f"✅ [2단계 성공] WASAPI 루프백 장치 발견: {device['name']}")
+                        for rate in self.SUPPORTED_RATES:
+                            if self.p.is_format_supported(rate, input_device=device['index'], input_channels=device['maxInputChannels'], input_format=pyaudio.paInt16):
+                                logger.info(f"✅ {rate}Hz 샘플링 지원 확인.")
+                                return device['index'], rate, device['maxInputChannels']
+            except Exception:
+                 logger.warning("WASAPI 루프백 장치를 찾지 못했습니다. (비-Windows 환경일 수 있음)")
+
+            # 3단계: 기본 입력 장치(마이크)를 최후의 수단으로 사용
+            logger.warning("루프백 장치 탐색 실패. 시스템 기본 마이크를 사용합니다.")
+            default_device = self.p.get_default_input_device_info()
+            for rate in self.SUPPORTED_RATES:
+                 if self.p.is_format_supported(rate, input_device=default_device['index'], input_channels=1, input_format=pyaudio.paInt16):
+                    logger.info(f"✅ 기본 마이크({default_device['name']})에서 {rate}Hz 샘플링 지원 확인.")
+                    return default_device['index'], rate, 1
+
+        except Exception as e:
+            logger.error(f"오디오 장치 검색 중 치명적 오류 발생: {e}", exc_info=True)
+
+        return None, None, None

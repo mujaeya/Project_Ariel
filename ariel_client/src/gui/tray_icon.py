@@ -1,11 +1,11 @@
-# ariel_client/src/gui/tray_icon.py (이 코드로 전체 교체)
+# ariel_client/src/gui/tray_icon.py (수정 후)
 import logging
 from PySide6.QtWidgets import QSystemTrayIcon, QMenu, QMessageBox, QApplication
 from PySide6.QtGui import QIcon, QAction
 from PySide6.QtCore import Slot, QObject, QRect, QThread, QTimer, QCoreApplication, QLocale, QTranslator
 
 from ..config_manager import ConfigManager
-from .setup_window import SetupWindow, UI_LANGUAGES # [추가] UI_LANGUAGES 임포트
+from .setup_window import SetupWindow
 from .overlay_manager import OverlayManager
 from .ocr_capturer import OcrCapturer
 from ..core.screen_monitor import ScreenMonitor
@@ -13,14 +13,14 @@ from ..core.translation_worker import TranslationWorker
 from ..core.hotkey_manager import HotkeyManager
 from ..core.audio_processor import AudioProcessor
 from ..core.sound_player import SoundPlayer
-from ..utils import resource_path # [추가] resource_path 임포트
+from ..utils import resource_path
 
 logger = logging.getLogger(__name__)
 
 def get_system_language():
-    """[추가] 시스템 언어 코드를 앱에서 사용하는 2자리 코드로 변환"""
     lang = QLocale.system().name().split('_')[0]
-    return lang if lang in UI_LANGUAGES.values() else "en"
+    supported_langs = {"en", "ko"} 
+    return lang if lang in supported_langs else "en"
 
 class TrayIcon(QObject):
     def __init__(self, config_manager: ConfigManager, icon: QIcon, app: QApplication):
@@ -28,7 +28,6 @@ class TrayIcon(QObject):
         self.app = app
         self.config_manager = config_manager
         
-        # [추가] UI 언어 설정 적용
         self.apply_ui_language()
 
         self.sound_player = SoundPlayer(self.config_manager, self)
@@ -51,18 +50,16 @@ class TrayIcon(QObject):
         self.connect_signals()
 
         self.tray_icon.show()
-        logger.info("트레이 아이콘 및 핵심 컴포넌트 준비 완료.")
-
         self.worker_thread.start()
         self.hotkey_manager.start()
         self.sound_player.play("sound_app_start")
 
+        logger.info("트레이 아이콘 및 핵심 컴포넌트 준비 완료.")
         if self.config_manager.get("is_first_run"):
             logger.warning("첫 실행으로 감지되어 설정 창을 먼저 실행합니다.")
             QTimer.singleShot(100, self.open_setup_window)
 
     def apply_ui_language(self):
-        """[추가] 시작 시 UI 언어 설정을 확인하고 적용합니다."""
         app_lang_code = self.config_manager.get("app_language", "auto")
         if app_lang_code == "auto":
             app_lang_code = get_system_language()
@@ -73,33 +70,26 @@ class TrayIcon(QObject):
         if self.translator.load(translation_path):
             self.app.installTranslator(self.translator)
             logger.info(f"UI 언어 '{app_lang_code}'를 적용했습니다.")
-        else:
-            logger.warning(f"번역 파일 로드 실패: {translation_path}. 기본 언어(영어)로 진행합니다.")
-            # Fallback to English if primary fails
-            if app_lang_code != 'en':
-                if self.translator.load(resource_path('translations/ariel_en.qm')):
-                    self.app.installTranslator(self.translator)
+        elif app_lang_code != 'en':
+            logger.warning(f"번역 파일({translation_path}) 로드 실패. 영어로 대체합니다.")
+            if self.translator.load(resource_path('translations/ariel_en.qm')):
+                self.app.installTranslator(self.translator)
 
     def connect_signals(self):
-        """모든 시그널-슬롯 연결을 관리합니다."""
         self.worker.stt_translation_ready.connect(self.overlay_manager.add_stt_translation)
         self.worker.ocr_patches_ready.connect(self.overlay_manager.show_ocr_patches)
         self.worker.error_occurred.connect(self.on_worker_error)
         self.worker.status_updated.connect(self.overlay_manager.add_system_message_to_stt)
+        
         self.worker_thread.finished.connect(self.worker.deleteLater)
         self.worker_thread.finished.connect(self.worker_thread.deleteLater)
         
         self.hotkey_manager.hotkey_pressed.connect(self.on_hotkey_pressed)
+        
         self.config_manager.settings_changed.connect(self.hotkey_manager.reload_hotkeys)
-        # [추가] 설정 변경 시 사운드 플레이어 볼륨도 업데이트
         self.config_manager.settings_changed.connect(self.sound_player.update_volume)
-
-
-    # --- 이하 코드는 제공해주신 원본과 대부분 동일 ---
-    # (tr 함수 호출 부분만 변경될 수 있습니다)
     
     def create_menu(self):
-        """트레이 아이콘의 컨텍스트 메뉴를 생성합니다."""
         self.menu = QMenu()
         self.voice_translation_action = QAction(self.tr("Start Voice Translation"), self, checkable=True)
         self.ocr_translation_action = QAction(self.tr("Start Screen Translation"), self, checkable=True)
@@ -118,18 +108,14 @@ class TrayIcon(QObject):
         self.quit_action.triggered.connect(self.quit_application)
 
     def open_setup_window(self):
-        """설정 창을 열거나, 이미 열려있으면 활성화합니다."""
-        if self.setup_window and self.setup_window.isVisible():
-            self.setup_window.activateWindow()
-            return
-        self.setup_window = SetupWindow(self.config_manager)
-        # 설정 창이 닫힐 때 참조를 제거하여 메모리 누수 방지
-        self.setup_window.closed.connect(lambda: setattr(self, 'setup_window', None))
-        self.setup_window.show()
+        if not self.setup_window or not self.setup_window.isVisible():
+            self.setup_window = SetupWindow(self.config_manager)
+            self.setup_window.show()
+        self.setup_window.activateWindow()
 
     @Slot(str)
     def on_hotkey_pressed(self, action_name: str):
-        """단축키가 눌렸을 때 해당 기능을 실행합니다."""
+        logger.debug(f"단축키 '{action_name}' 감지됨.")
         actions = {
             "hotkey_toggle_stt": self.voice_translation_action.toggle,
             "hotkey_toggle_ocr": self.ocr_translation_action.toggle,
@@ -137,120 +123,152 @@ class TrayIcon(QObject):
             "hotkey_quit_app": self.quit_application
         }
         if (action := actions.get(action_name)):
-            logger.info(f"단축키 액션 '{action_name}'을 실행합니다.")
             action()
 
     @Slot(bool)
     def toggle_voice_translation(self, checked: bool):
-        """음성 번역 시작/중지 토글"""
-        if checked and not self.config_manager.get("deepl_api_key"):
-            QMessageBox.warning(None, self.tr("API Key Required"), self.tr("Please set your DeepL API key in the settings."))
-            self.voice_translation_action.setChecked(False)
-            return
-
-        self.voice_translation_action.setText(self.tr("Stop Voice Translation") if checked else self.tr("Start Voice Translation"))
+        logger.info(f"음성 번역 토글: {'시작' if checked else '중지'}")
         if checked:
+            if not self.config_manager.get("deepl_api_key"):
+                QMessageBox.warning(None, self.tr("API Key Required"), self.tr("Please set your DeepL API key in the settings."))
+                self.voice_translation_action.setChecked(False)
+                return
             self.start_voice_translation()
         else:
             self.stop_voice_translation()
 
     def start_voice_translation(self):
-        if self.audio_thread and self.audio_thread.isRunning(): return
-        logger.info("음성 번역 스레드 시작")
-        
+        if self.audio_thread and self.audio_thread.isRunning():
+            logger.warning("음성 번역 스레드가 이미 실행 중이므로 시작 요청을 무시합니다.")
+            return
+
+        logger.info("음성 번역 서비스 시작 절차...")
         self.audio_thread = QThread()
         self.audio_processor = AudioProcessor(self.config_manager)
         self.audio_processor.moveToThread(self.audio_thread)
+        
         self.audio_processor.audio_chunk_ready.connect(self.worker.process_stt_audio)
         self.audio_processor.status_updated.connect(lambda msg: self.overlay_manager.add_system_message_to_stt(f"Audio: {msg}"))
+        
+        # [핵심 수정] 프로세서가 끝나면 스레드 정리 슬롯이 호출되도록 연결
         self.audio_processor.finished.connect(self.on_audio_processor_finished)
+        
         self.audio_thread.started.connect(self.audio_processor.start_processing)
-        self.audio_thread.finished.connect(self.audio_thread.deleteLater)
         self.audio_thread.start()
         
         self.sound_player.play("sound_stt_start")
         self.overlay_manager.show_stt_overlay()
+        self.voice_translation_action.setText(self.tr("Stop Voice Translation"))
 
     def stop_voice_translation(self):
+        logger.info("음성 번역 서비스 중지 요청...")
         if self.audio_processor:
-            self.audio_processor.stop() # QTimer.singleShot 제거, 직접 호출로 변경
-
+            # stop()을 호출하면, audio_processor 내부 루프가 종료되고 'finished' 시그널이 방출될 것임
+            self.audio_processor.stop()
+        else:
+            # 정리할 프로세서가 없으면 UI만이라도 정리
+            logger.warning("중지할 AudioProcessor 객체가 없지만 UI를 정리합니다.")
+            self.on_audio_processor_finished()
+            
     @Slot()
     def on_audio_processor_finished(self):
-        logger.info("Audio processor 작업 완료. 스레드를 정리합니다.")
-        if self.audio_thread and self.audio_thread.isRunning():
-            self.audio_thread.quit()
-            self.audio_thread.wait(1000)
+        """AudioProcessor.finished 시그널에 연결된 슬롯. 스레드와 객체를 안전하게 정리합니다."""
+        logger.debug("AudioProcessor 'finished' 시그널 수신. 스레드 정리 시작.")
+        if self.audio_thread:
+            if self.audio_thread.isRunning():
+                self.audio_thread.quit()
+                if not self.audio_thread.wait(3000): # 3초 대기
+                    logger.warning("음성 번역 스레드가 제 시간 내에 종료되지 않았습니다.")
+            self.audio_thread.deleteLater()
         
-        self.audio_thread = None
         if self.audio_processor:
-             self.audio_processor.deleteLater()
-             self.audio_processor = None
+            self.audio_processor.deleteLater()
+            
+        self.audio_thread = None
+        self.audio_processor = None
         
-        logger.info("음성 번역 스레드 완전히 종료됨.")
         self.sound_player.play("sound_stt_stop")
         self.overlay_manager.hide_stt_overlay()
         if self.voice_translation_action.isChecked():
             self.voice_translation_action.setChecked(False)
+        self.voice_translation_action.setText(self.tr("Start Voice Translation"))
+        logger.info("음성 번역 서비스가 완전히 정리되었습니다.")
 
     @Slot(bool)
     def toggle_ocr_translation(self, checked: bool):
-        if checked and not self.config_manager.get("deepl_api_key"):
-            QMessageBox.warning(None, self.tr("API Key Required"), self.tr("Please set your DeepL API key in the settings."))
-            self.ocr_translation_action.setChecked(False)
-            return
-
-        self.ocr_translation_action.setText(self.tr("Stop Screen Translation") if checked else self.tr("Start Screen Translation"))
+        logger.info(f"화면 번역 토글: {'시작' if checked else '중지'}")
         if checked:
+            if not self.config_manager.get("deepl_api_key"):
+                QMessageBox.warning(None, self.tr("API Key Required"), self.tr("Please set your DeepL API key in the settings."))
+                self.ocr_translation_action.setChecked(False)
+                return
             self.select_ocr_region()
         else:
             self.stop_ocr_monitoring()
 
     def select_ocr_region(self):
-        if self.ocr_capturer and self.ocr_capturer.isVisible():
-            self.ocr_capturer.activateWindow()
-            return
+        if self.ocr_capturer and self.ocr_capturer.isVisible(): return
+        logger.debug("OCR 영역 선택기 표시")
         self.ocr_capturer = OcrCapturer()
         self.ocr_capturer.region_selected.connect(self.start_ocr_monitoring_on_region)
         self.ocr_capturer.cancelled.connect(lambda: self.ocr_translation_action.setChecked(False))
-        self.ocr_capturer.finished.connect(lambda: setattr(self, 'ocr_capturer', None))
         self.ocr_capturer.show()
 
     @Slot(QRect)
     def start_ocr_monitoring_on_region(self, rect: QRect):
-        if rect.isNull() or not self.ocr_translation_action.isChecked():
+        if rect.isNull():
+            logger.warning("OCR 영역 선택이 취소되었거나 유효하지 않아 중단합니다.")
             self.ocr_translation_action.setChecked(False)
             return
         
-        self.stop_ocr_monitoring()
+        # [핵심 수정] 새 모니터링 시작 전, 기존 모니터링을 완벽하게 중지
+        self.stop_ocr_monitoring(play_sound=False)
+        logger.info(f"새 OCR 영역({rect})에 대한 모니터링 시작.")
 
         self.ocr_monitor_thread = QThread()
-        self.screen_monitor = ScreenMonitor(rect, self.overlay_manager.get_stt_overlay_geometry)
+        # [수정] ScreenMonitor에 get_stt_overlay_geometries 함수를 람다로 전달
+        self.screen_monitor = ScreenMonitor(rect, lambda: self.overlay_manager.get_stt_overlay_geometries())
         self.screen_monitor.moveToThread(self.ocr_monitor_thread)
+        
         self.ocr_monitor_thread.started.connect(self.screen_monitor.start_monitoring)
+        # [수정] image_changed 시그널이 QRect 없이 bytes만 보내므로 연결 문제 없음
         self.screen_monitor.image_changed.connect(self.worker.process_ocr_image)
+        # [핵심 수정] 모니터가 멈추면 스레드를 종료하도록 연결
         self.screen_monitor.stopped.connect(self.ocr_monitor_thread.quit)
+        
         self.ocr_monitor_thread.finished.connect(self.ocr_monitor_thread.deleteLater)
         self.ocr_monitor_thread.finished.connect(lambda: setattr(self, 'screen_monitor', None))
         self.ocr_monitor_thread.start()
         
         self.sound_player.play("sound_ocr_start")
+        self.ocr_translation_action.setText(self.tr("Stop Screen Translation"))
 
-    def stop_ocr_monitoring(self):
-        if self.screen_monitor: self.screen_monitor.stop()
-        if self.ocr_monitor_thread and self.ocr_monitor_thread.isRunning():
-            self.ocr_monitor_thread.quit()
-            self.ocr_monitor_thread.wait(1000)
+    def stop_ocr_monitoring(self, play_sound=True):
+        logger.info("화면 번역 서비스 중지 요청...")
+        if self.screen_monitor:
+            self.screen_monitor.stop()
 
+        if self.ocr_monitor_thread:
+            if self.ocr_monitor_thread.isRunning():
+                logger.debug("화면 번역 스레드 종료 대기...")
+                if not self.ocr_monitor_thread.wait(3000):
+                    logger.warning("화면 번역 스레드가 제 시간 내에 종료되지 않았습니다.")
+            self.ocr_monitor_thread.deleteLater()
+            
+        self.screen_monitor = None
         self.ocr_monitor_thread = None
         self.overlay_manager.hide_ocr_overlay()
 
+        if play_sound: self.sound_player.play("sound_ocr_stop")
+        
         if self.ocr_translation_action.isChecked():
-             self.sound_player.play("sound_ocr_stop")
-             self.ocr_translation_action.setChecked(False)
+            self.ocr_translation_action.setChecked(False)
+        self.ocr_translation_action.setText(self.tr("Start Screen Translation"))
+        logger.info("화면 번역 서비스가 완전히 정리되었습니다.")
 
     @Slot(str)
     def on_worker_error(self, message: str):
+        logger.error(f"Worker로부터 오류 수신: {message}")
         QMessageBox.warning(None, self.tr("Error"), message)
         if "STT" in message or "Audio" in message:
             if self.voice_translation_action.isChecked(): self.voice_translation_action.setChecked(False)
@@ -258,14 +276,15 @@ class TrayIcon(QObject):
             if self.ocr_translation_action.isChecked(): self.ocr_translation_action.setChecked(False)
 
     def quit_application(self):
-        logger.info("애플리케이션 종료 절차를 시작합니다.")
+        logger.info("애플리케이션 종료 절차 시작...")
         self.hotkey_manager.stop()
         self.stop_voice_translation()
         self.stop_ocr_monitoring()
         QTimer.singleShot(500, self._quit_threads_and_app)
 
     def _quit_threads_and_app(self):
-        if self.worker_thread:
+        logger.info("백그라운드 스레드를 종료하고 앱을 나갑니다.")
+        if self.worker_thread and self.worker_thread.isRunning():
             self.worker_thread.quit()
             self.worker_thread.wait(1000)
         self.tray_icon.hide()
