@@ -1,4 +1,4 @@
-# ariel_client/src/api_client.py (수정 후)
+# ariel_client/src/api_client.py (이 코드로 전체 교체)
 import logging
 import requests
 
@@ -12,19 +12,17 @@ class APIClient:
         self.session = requests.Session()
         logger.info(f"API 클라이언트가 서버({self.base_url})를 대상으로 초기화되었습니다.")
 
-    def stt(self, audio_bytes: bytes, model_name: str) -> str:
+    def stt(self, audio_bytes: bytes, channels: int) -> str:
         """
-        오디오 데이터를 백엔드 서버로 보내고, STT 텍스트 결과를 받아옵니다.
+        [수정] 오디오 데이터와 채널 수를 백엔드 서버로 보내고, STT 텍스트 결과를 받아옵니다.
         """
         try:
             stt_url = f"{self.base_url}/api/v1/stt"
-
-            # [수정] 백엔드 엔드포인트의 파라미터 이름('audio_file')과 정확히 일치시킵니다.
             files = {'audio_file': ('recorded_audio.wav', audio_bytes, 'audio/wav')}
-            # 참고: 현재 백엔드는 'model' 파라미터를 사용하지 않으나, 추후 확장을 위해 data 필드를 유지합니다.
-            data = {'model': model_name} 
+            # [수정] data 필드에 채널 수를 추가
+            data = {'channels': channels}
 
-            logger.debug(f"STT API 요청 전송: model={model_name}")
+            logger.debug(f"STT API 요청 전송: channels={channels}")
             response = self.session.post(stt_url, files=files, data=data, timeout=20)
             response.raise_for_status()
 
@@ -43,7 +41,6 @@ class APIClient:
     def ocr(self, image_bytes: bytes) -> str:
         """
         이미지 데이터를 백엔드 서버로 보내고, OCR 텍스트 결과를 받아옵니다.
-        (참고: 현재 TranslationWorker는 이 함수 대신 로컬 pytesseract를 사용하고 있습니다.)
         """
         try:
             ocr_url = f"{self.base_url}/api/v1/ocr"

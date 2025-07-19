@@ -3,66 +3,76 @@ import deepl
 import logging
 from .config_manager import ConfigManager
 
+logger = logging.getLogger("root")
+
 class MTEngine:
-    """
-    DeepL API를 사용하여 텍스트를 번역합니다.
-    """
     def __init__(self, config_manager: ConfigManager):
         self.config_manager = config_manager
-        self.api_key = self.config_manager.get("deepl_api_key")
-        self.translator = deepl.Translator(self.api_key) if self.api_key else None
+        self._translator = None
+        self.usage = None
 
-        if not self.api_key:
-            raise ValueError("DeepL API 키가 설정되지 않았습니다.")
+    def _get_translator(self):
+        """API 키를 사용하여 DeepL 번역기 인스턴스를 생성하거나 캐시된 인스턴스를 반환합니다."""
+        if self._translator is None:
+            api_key = self.config_manager.get("deepl_api_key")
+            if not api_key:
+                logger.error("DeepL API 키가 설정되지 않았습니다.")
+                return None
+            try:
+                self._translator = deepl.Translator(api_key)
+                logger.info("DeepL 번역기 인스턴스가 성공적으로 생성되었습니다.")
+            except Exception as e:
+                logger.error(f"DeepL 번역기 생성 실패: {e}", exc_info=True)
+                return None
+        return self._translator
+
+    def translate_text(self, text, source_lang=None, target_lang='EN-US'):
+        """
+        주어진 텍스트를 번역합니다. 단일 문자열 또는 문자열 리스트를 처리할 수 있습니다.
+        [수정] deepl.TextResult 객체가 아닌, 실제 텍스트(str)를 반환하도록 수정합니다.
+        """
+        translator = self._get_translator()
+        if not translator:
+            # 번역기 초기화 실패 시 원본 텍스트나 None을 반환할 수 있습니다.
+            # 여기서는 원본 텍스트를 그대로 반환하도록 처리합니다.
+            return text if isinstance(text, str) else [str(t) for t in text]
+
+        if target_lang and target_lang.upper() == 'EN':
+            target_lang = 'EN-US'
+            logger.debug("번역 대상 언어 'EN'을 'EN-US'로 조정했습니다.")
 
         try:
-            self.translator = deepl.Translator(self.api_key)
-            # API 키 유효성 검사를 위해 간단한 호출 실행
-            self.translator.get_usage().character
-        except Exception as e:
-            raise ConnectionError(f"DeepL 번역기 초기화 실패: {e}. API 키가 유효한지 확인하세요.")
-
-    def is_active(self) -> bool:
-        return self.translator is not None
-
-    def translate_text(self, text: str, source_lang: str, target_lang: str) -> str | None:
-        """단일 텍스트를 지정된 소스 및 타겟 언어로 번역합니다."""
-        if not text or not self.is_active():
-            return None
-        try:
-            source_lang_code = source_lang.upper() if source_lang and source_lang != 'Auto Detect' else None
-            
-            result = self.translator.translate_text(
+            result = translator.translate_text(
                 text,
-                source_lang=source_lang_code,
-                target_lang=target_lang.upper()
+                source_lang=source_lang,
+                target_lang=target_lang
             )
-            return result.text
-        except deepl.DeepLException as e:
-            logging.error(f"DeepL 번역 API 오류: {e}")
-            return f"번역 오류: {e}"
-        except Exception as e:
-            logging.error(f"번역 중 예기치 않은 오류 발생: {e}")
-            return f"번역 오류: {e}"
 
-    def translate_text_multi(self, text: str, target_langs: list, **kwargs) -> dict:
-        """
-        주어진 텍스트를 여러 목표 언어로 동시에 번역합니다.
-        """
-        if not text or not isinstance(text, str) or not target_langs:
-            return {}
-
-        results = {}
-        try:
-            for lang in target_langs:
-                # DeepL API는 formality 등 추가 옵션을 지원할 수 있음
-                result = self.translator.translate_text(text, target_lang=lang, **kwargs)
-                results[lang] = result.text
-            return results
+            # [핵심 수정] 결과가 리스트인지 단일 객체인지 확인하고 .text 속성을 추출합니다.
+            if isinstance(result, list):
+                return [r.text for r in result]
+            elif result:
+                return result.text
+            else:
+                return None
 
         except deepl.DeepLException as e:
-            print(f"DeepL API 다중 번역 오류: {e}")
-            return {lang: "[번역 오류]" for lang in target_langs}
+            logger.error(f"DeepL 번역 API 오류: {e}")
+            if "target_lang" in str(e):
+                logger.error("잘못된 'target_lang' 코드일 수 있습니다. 설정을 확인해주세요.")
+            return None
         except Exception as e:
-            print(f"번역 중 예기치 않은 오류 발생: {e}")
-            return {lang: "[번역 중 오류 발생]" for lang in target_langs}
+            logger.error(f"번역 중 알 수 없는 오류 발생: {e}", exc_info=True)
+            return None
+
+    def get_usage(self):
+        """현재 DeepL API 사용량 정보를 가져옵니다."""
+        translator = self._get_translator()
+        if translator:
+            try:
+                self.usage = translator.get_usage()
+                return self.usage
+            except deepl.DeepLException as e:
+                logger.error(f"DeepL 사용량 조회 실패: {e}")
+                return None
+        return None
