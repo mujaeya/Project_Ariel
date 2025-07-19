@@ -2,160 +2,169 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="ko_KR">
 <context>
-    <name>ProgramSettingsPage</name>
-    <message>
-        <location filename="../../gui/setup_window.py" line="100"/>
-        <source>Program Settings</source>
-        <translation>프로그램 설정</translation>
-    </message>
-    <message>
-        <location filename="../../gui/setup_window.py" line="101"/>
-        <source>Configure the basic behavior of the program.</source>
-        <translation>프로그램의 기본적인 동작을 설정합니다.</translation>
-    </message>
-    <message>
-        <location filename="../../gui/setup_window.py" line="103"/>
-        <source>UI Language</source>
-        <translation>UI 언어</translation>
-    </message>
-    <message>
-        <location filename="../../gui/setup_window.py" line="104"/>
-        <source>DeepL API Key</source>
-        <translation>DeepL API 키</translation>
-    </message>
-    <message>
-        <location filename="../../gui/setup_window.py" line="105"/>
-        <source>Enter your API key</source>
-        <translation>API 키를 입력하세요</translation>
-    </message>
-    <message>
-        <location filename="../../gui/setup_window.py" line="106"/>
-        <source>UI Theme</source>
-        <translation>UI 테마</translation>
-    </message>
-    <message>
-        <location filename="../../gui/setup_window.py" line="107"/>
-        <source>Custom Theme Colors</source>
-        <translation>커스텀 테마 색상</translation>
-    </message>
-    <message>
-        <location filename="../../gui/setup_window.py" line="108"/>
-        <source>Global Hotkeys</source>
-        <translation>전역 단축키</translation>
-    </message>
-    <message>
-        <source>Primary Background</source>
-        <translation>기본 배경</translation>
-    </message>
-    <message>
-        <source>Secondary Background</source>
-        <translation>보조 배경</translation>
-    </message>
-    <message>
-        <source>Tertiary Background</source>
-        <translation>3차 배경</translation>
-    </message>
-    <message>
-        <source>Primary Text</source>
-        <translation>기본 텍스트</translation>
-    </message>
-    <message>
-        <source>Header Text</source>
-        <translation>제목 텍스트</translation>
-    </message>
-    <message>
-        <source>Muted Text</source>
-        <translation>흐린 텍스트</translation>
-    </message>
-    <message>
-        <source>Interactive Normal</source>
-        <translation>일반 상호작용</translation>
-    </message>
-    <message>
-        <source>Interactive Hover</source>
-        <translation>상호작용 (호버)</translation>
-    </message>
-    <message>
-        <source>Interactive Accent</source>
-        <translation>강조 상호작용</translation>
-    </message>
-    <message>
-        <source>Interactive Accent Hover</source>
-        <translation>강조 상호작용 (호버)</translation>
-    </message>
-    <message>
-        <source>Border Color</source>
-        <translation>테두리 색상</translation>
-    </message>
-    <message>
-        <source>Start/Stop Voice Translation</source>
-        <translation>음성 번역 시작/중지</translation>
-    </message>
-    <message>
-        <source>Start/Stop Screen Translation</source>
-        <translation>화면 번역 시작/중지</translation>
-    </message>
-    <message>
-        <source>Open/Close Settings Window</source>
-        <translation>설정 창 열기/닫기</translation>
-    </message>
-    <message>
-        <source>Quit Program</source>
-        <translation>프로그램 종료</translation>
-    </message>
-</context>
-<context>
     <name>SetupWindow</name>
     <message>
+        <location filename="../gui/setup_window.py" line="22"/>
         <source>Ariel Settings</source>
         <translation>Ariel 설정</translation>
     </message>
     <message>
-        <source>Save and Close</source>
-        <translation>저장하고 닫기</translation>
+        <location filename="../gui/setup_window.py" line="41"/>
+        <source>Save</source>
+        <translation>저장</translation>
     </message>
     <message>
+        <location filename="../gui/setup_window.py" line="42"/>
         <source>Cancel</source>
         <translation>취소</translation>
     </message>
     <message>
-        <source>Reset Settings</source>
-        <translation>설정 초기화</translation>
+        <location filename="../gui/setup_window.py" line="52"/>
+        <source>Translation Settings</source>
+        <translation>번역 설정</translation>
     </message>
     <message>
-        <source>Restart required</source>
-        <translation>재시작 필요</translation>
+        <location filename="../gui/setup_window.py" line="55"/>
+        <source>Language Settings</source>
+        <translation>언어 설정</translation>
     </message>
     <message>
-        <source>UI language change requires a program restart to take full effect.</source>
-        <translation>UI 언어 변경을 완전히 적용하려면 프로그램을 재시작해야 합니다.</translation>
+        <location filename="../gui/setup_window.py" line="65"/>
+        <source>Source Language:</source>
+        <translation>원본 언어:</translation>
     </message>
     <message>
-        <source>Complete</source>
-        <translation>완료</translation>
+        <location filename="../gui/setup_window.py" line="66"/>
+        <source>Target Language:</source>
+        <translation>번역할 언어:</translation>
     </message>
     <message>
-        <source>All settings have been reset.</source>
-        <translation>모든 설정이 초기화되었습니다.</translation>
+        <location filename="../gui/setup_window.py" line="70"/>
+        <source>Voice Translation (STT) Settings</source>
+        <translation>음성 번역 (STT) 설정</translation>
+    </message>
+    <message>
+        <location filename="../gui/setup_window.py" line="74"/>
+        <source>Higher means more sensitive (1-3)</source>
+        <translation>높을수록 민감하게 반응합니다 (1-3)</translation>
+    </message>
+    <message>
+        <location filename="../gui/setup_window.py" line="75"/>
+        <source>VAD Sensitivity:</source>
+        <translation>음성 감지 민감도:</translation>
+    </message>
+    <message>
+        <location filename="../gui/setup_window.py" line="79"/>
+        <source>Screen Translation (OCR) Settings</source>
+        <translation>화면 번역 (OCR) 설정</translation>
+    </message>
+    <message>
+        <location filename="../gui/setup_window.py" line="82"/>
+        <source>Standard Overlay Mode</source>
+        <translation>표준 오버레이 모드</translation>
+    </message>
+    <message>
+        <location filename="../gui/setup_window.py" line="83"/>
+        <source>Style-clone Patch Mode (In-dev)</source>
+        <translation>스타일 복제 패치 모드 (개발 중)</translation>
+    </message>
+    <message>
+        <location filename="../gui/setup_window.py" line="87"/>
+        <source>Style-clone mode replicates the background, color, etc. of the original text to cover it naturally.</source>
+        <translation>스타일 복제 모드는 원본 텍스트의 배경, 색상 등을 복제하여 자연스럽게 덮어씌우는 기능입니다.</translation>
+    </message>
+    <message>
+        <location filename="../gui/setup_window.py" line="97"/>
+        <source>Hotkey Settings</source>
+        <translation>단축키 설정</translation>
+    </message>
+    <message>
+        <location filename="../gui/setup_window.py" line="102"/>
+        <source>Toggle STT:</source>
+        <translation>음성 번역 시작/종료:</translation>
+    </message>
+    <message>
+        <location filename="../gui/setup_window.py" line="103"/>
+        <source>Toggle OCR:</source>
+        <translation>화면 번역 시작/종료:</translation>
+    </message>
+    <message>
+        <location filename="../gui/setup_window.py" line="104"/>
+        <source>Toggle Setup:</source>
+        <translation>설정창 열기/닫기:</translation>
+    </message>
+    <message>
+        <location filename="../gui/setup_window.py" line="105"/>
+        <source>Quit App:</source>
+        <translation>프로그램 종료:</translation>
+    </message>
+    <message>
+        <location filename="../gui/setup_window.py" line="110"/>
+        <source>Enter hotkey (e.g., Alt+1)</source>
+        <translation>단축키를 입력하세요 (예: Alt+1)</translation>
+    </message>
+    <message>
+        <location filename="../gui/setup_window.py" line="115"/>
+        <source>Program Settings</source>
+        <translation>프로그램 설정</translation>
+    </message>
+    <message>
+        <location filename="../gui/setup_window.py" line="118"/>
+        <source>General</source>
+        <translation>일반</translation>
+    </message>
+    <message>
+        <location filename="../gui/setup_window.py" line="125"/>
+        <source>UI Language:</source>
+        <translation>UI 언어:</translation>
+    </message>
+    <message>
+        <location filename="../gui/setup_window.py" line="131"/>
+        <source>UI Theme:</source>
+        <translation>UI 테마:</translation>
+    </message>
+    <message>
+        <location filename="../gui/setup_window.py" line="132"/>
+        <source>Follow System</source>
+        <translation>시스템 설정 따름</translation>
+    </message>
+    <message>
+        <location filename="../gui/setup_window.py" line="133"/>
+        <source>Light</source>
+        <translation>라이트</translation>
+    </message>
+    <message>
+        <location filename="../gui/setup_window.py" line="134"/>
+        <source>Dark</source>
+        <translation>다크</translation>
+    </message>
+    <message>
+        <location filename="../gui/setup_window.py" line="137"/>
+        <source>Run on Windows startup</source>
+        <translation>윈도우 시작 시 자동 실행</translation>
     </message>
 </context>
 <context>
-    <name>SetupWindow_PageTitles</name>
+    <name>TrayIcon</name>
     <message>
-        <source>Program</source>
-        <translation>프로그램</translation>
+        <location filename="../gui/tray_icon.py" line="262"/>
+        <source>Start STT</source>
+        <translation>음성 번역 시작</translation>
     </message>
     <message>
-        <source>Screen Translation (OCR)</source>
-        <translation>화면 번역 (OCR)</translation>
+        <location filename="../gui/tray_icon.py" line="263"/>
+        <source>Start OCR</source>
+        <translation>화면 번역 (영역 지정)</translation>
     </message>
     <message>
-        <source>Voice Translation (STT)</source>
-        <translation>음성 번역 (STT)</translation>
+        <location filename="../gui/tray_icon.py" line="264"/>
+        <source>Settings</source>
+        <translation>설정</translation>
     </message>
     <message>
-        <source>Overlay Style</source>
-        <translation>오버레이 스타일</translation>
+        <location filename="../gui/tray_icon.py" line="265"/>
+        <source>Quit</source>
+        <translation>종료</translation>
     </message>
 </context>
 </TS>

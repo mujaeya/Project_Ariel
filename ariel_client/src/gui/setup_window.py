@@ -1,4 +1,3 @@
-# ariel_client/src/gui/setup_window.py (이 코드로 전체 교체)
 import sys
 import logging
 import random
@@ -144,7 +143,6 @@ class ProgramSettingsPage(BaseSettingsPage):
     def retranslate_ui(self):
         self.title_label.setText(self.tr("ProgramSettingsPage", "Program Settings")); self.desc_label.setText(self.tr("ProgramSettingsPage", "Configure API key, theme, and global hotkeys."))
         
-        # *** FIX: Access the explicitly created description labels ***
         self.lang_card.title_label.setText(self.tr("ProgramSettingsPage", "UI Language")); self.lang_card_desc.setText(self.tr("ProgramSettingsPage", "Restart the program to apply language changes."))
         self.api_card.title_label.setText(self.tr("ProgramSettingsPage", "DeepL API Key")); self.api_card_desc.setText(self.tr("ProgramSettingsPage", "API key is required for translation functions."))
         
