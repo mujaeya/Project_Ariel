@@ -14,8 +14,8 @@ class ScreenMonitor(QObject):
     finished = Signal()
     status_updated = Signal(str)
 
-    def __init__(self, rect: QRect, stt_overlay_getter, parent=None):
-        super().__init__(parent)
+    def __init__(self, rect: QRect, stt_overlay_getter):
+        super().__init__(None)
         if rect.isNull() or rect.width() <= 0 or rect.height() <= 0:
             raise ValueError("유효하지 않은 감시 영역입니다.")
         

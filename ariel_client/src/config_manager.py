@@ -39,6 +39,7 @@ class ConfigManager(QObject):
             "audio_input_device_index": None,
             "use_vad": False,
             "vad_sensitivity": 3,
+            "silence_db_threshold": -50.0,
             "silence_threshold_s": 1.5, # [수정] 기본값 1.0 -> 1.5
             "min_audio_length_s": 0.5,
             "fixed_chunk_duration_s": 4.0, # [추가] VAD 미사용 시 고정 청크 시간

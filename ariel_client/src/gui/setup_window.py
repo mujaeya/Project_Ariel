@@ -1,3 +1,5 @@
+# ariel_client/src/gui/setup_window.py (무음 감지 설정 추가 최종본)
+
 import sys
 import logging
 import random
@@ -5,7 +7,7 @@ from PySide6.QtWidgets import (QApplication, QWidget, QHBoxLayout, QListWidget, 
                              QListWidgetItem, QPushButton, QSpacerItem, QSizePolicy, QLineEdit,
                              QKeySequenceEdit, QLabel, QSlider, QMessageBox, QComboBox, 
                              QSpinBox, QColorDialog, QFrame, QFontComboBox, QFormLayout, QDialog,
-                             QGraphicsOpacityEffect)
+                             QGraphicsOpacityEffect, QDoubleSpinBox) # [추가] QDoubleSpinBox
 from PySide6.QtCore import Qt, Signal, QSize, QCoreApplication, QTranslator, QLocale, QTimer, QPropertyAnimation, QEasingCurve, Slot
 from PySide6.QtGui import QKeySequence, QColor, QFont, QScreen, QPainter, QFontMetrics
 
@@ -16,26 +18,25 @@ from .fluent_widgets import (NavigationItemWidget, SettingsPage, TitleLabel,
 
 logger = logging.getLogger(__name__)
 
-# 확장된 UI 언어 목록
+# ... (UI_LANGUAGES, DEEPL_LANGUAGES, TARGET_LANGUAGES, get_system_language, ColorPickerButton, BaseSettingsPage 클래스는 변경 없음)
+# ...
+# (이전 코드와 동일한 부분)
+# ...
 UI_LANGUAGES = {
     "Auto Detect": "auto", "English": "en", "Korean": "ko", "Japanese": "ja",
     "Chinese (Simplified)": "zh", "German": "de", "French": "fr", "Spanish": "es",
 }
-# DeepL API가 지원하는 언어 목록
 DEEPL_LANGUAGES = {
     "Auto Detect": "auto", "Korean": "KO", "English": "EN", "Japanese": "JA",
     "Chinese": "ZH", "German": "DE", "French": "FR", "Spanish": "ES",
 }
-# 번역 '대상' 언어에 시스템 언어 옵션 추가
 TARGET_LANGUAGES = {"System Language": "auto", **{k: v for k, v in DEEPL_LANGUAGES.items() if v != 'auto'}}
 
 def get_system_language():
-    """시스템 언어 코드를 앱에서 사용하는 2자리 코드로 변환 (e.g., 'ko_KR' -> 'ko')"""
     lang = QLocale.system().name().split('_')[0]
     return lang if lang in UI_LANGUAGES.values() else "en"
 
 class ColorPickerButton(QPushButton):
-    """색상 선택 다이얼로그를 여는 커스텀 버튼 위젯"""
     colorChanged = Signal(QColor)
     def __init__(self, color=Qt.GlobalColor.white, parent=None):
         super().__init__(parent)
@@ -56,7 +57,6 @@ class ColorPickerButton(QPushButton):
         if color.isValid() and color != self._color: self.set_color(color); self.colorChanged.emit(color)
 
 class BaseSettingsPage(SettingsPage):
-    """모든 설정 페이지의 기반 클래스"""
     def __init__(self, config_manager: ConfigManager):
         super().__init__()
         self.config_manager = config_manager
@@ -64,7 +64,8 @@ class BaseSettingsPage(SettingsPage):
     def save_settings(self): pass
     def retranslate_ui(self): pass
     def tr(self, context, text): return QCoreApplication.translate(context, text)
-
+# ...
+# ... (ProgramSettingsPage 클래스는 변경 없음)
 class ProgramSettingsPage(BaseSettingsPage):
     """프로그램 기본 설정 페이지 (API 키, 테마, 볼륨, 단축키)"""
     language_changed = Signal(str)
@@ -131,7 +132,6 @@ class ProgramSettingsPage(BaseSettingsPage):
             self.hotkey_widgets[action] = key_edit; layout.addWidget(key_edit); self.hotkey_card.add_layout(layout)
         self.add_widget(self.hotkey_card)
         
-        # Connect signals
         self.lang_combo.currentIndexChanged.connect(lambda: self.language_changed.emit(self.lang_combo.currentData()))
         self.theme_combo.currentTextChanged.connect(self.on_theme_changed)
         self.volume_slider.valueChanged.connect(lambda v: self.volume_label.setText(f"{v}%"))
@@ -142,10 +142,8 @@ class ProgramSettingsPage(BaseSettingsPage):
 
     def retranslate_ui(self):
         self.title_label.setText(self.tr("ProgramSettingsPage", "Program Settings")); self.desc_label.setText(self.tr("ProgramSettingsPage", "Configure API key, theme, and global hotkeys."))
-        
         self.lang_card.title_label.setText(self.tr("ProgramSettingsPage", "UI Language")); self.lang_card_desc.setText(self.tr("ProgramSettingsPage", "Restart the program to apply language changes."))
         self.api_card.title_label.setText(self.tr("ProgramSettingsPage", "DeepL API Key")); self.api_card_desc.setText(self.tr("ProgramSettingsPage", "API key is required for translation functions."))
-        
         self.deepl_key_edit.setPlaceholderText(self.tr("ProgramSettingsPage", "Enter your DeepL API Key")); self.theme_card.title_label.setText(self.tr("ProgramSettingsPage", "UI Theme"))
         self.volume_card.title_label.setText(self.tr("ProgramSettingsPage", "Notification Sound Volume")); self.custom_colors_card.title_label.setText(self.tr("ProgramSettingsPage", "Custom Theme Colors"))
         self.hotkey_card.title_label.setText(self.tr("ProgramSettingsPage", "Global Hotkeys"))
@@ -166,48 +164,150 @@ class ProgramSettingsPage(BaseSettingsPage):
         self.config_manager.set("app_theme", self.theme_combo.currentText().lower()); self.config_manager.set("notification_volume", self.volume_slider.value())
         custom_colors = {key: picker.color().name() for key, (_, _, picker) in self.color_pickers.items()}; self.config_manager.set("custom_theme_colors", custom_colors)
         for action, widget in self.hotkey_widgets.items(): self.config_manager.set(action, widget.keySequence().toString(QKeySequence.PortableText))
+# ...
 
 class TranslationSettingsPage(BaseSettingsPage):
     ocr_mode_changed = Signal(str)
     def __init__(self, config_manager: ConfigManager):
         super().__init__(config_manager)
-        self.title_label = TitleLabel(); self.desc_label = DescriptionLabel()
-        self.add_widget(self.title_label); self.add_widget(self.desc_label)
-        self.stt_card = SettingsCard(); stt_lang_layout = QHBoxLayout(); self.stt_source_label = QLabel()
-        stt_lang_layout.addWidget(self.stt_source_label); self.stt_source_combo = self.create_lang_combo(is_source=True); stt_lang_layout.addWidget(self.stt_source_combo); stt_lang_layout.addStretch()
-        self.stt_target_label = QLabel(); stt_lang_layout.addWidget(self.stt_target_label); self.stt_target_combo = self.create_lang_combo(is_source=False); stt_lang_layout.addWidget(self.stt_target_combo); self.stt_card.add_layout(stt_lang_layout)
-        vad_layout = QHBoxLayout(); self.vad_label = QLabel(); vad_layout.addWidget(self.vad_label); self.vad_slider = QSlider(Qt.Orientation.Horizontal); self.vad_slider.setRange(1, 3); self.vad_slider.setTickPosition(QSlider.TickPosition.TicksBelow); vad_layout.addWidget(self.vad_slider); self.stt_card.add_layout(vad_layout)
-        silence_layout = QHBoxLayout(); self.silence_label = QLabel(); silence_layout.addWidget(self.silence_label); self.silence_spinbox = QSpinBox(); self.silence_spinbox.setRange(1, 5); silence_layout.addWidget(self.silence_spinbox); self.stt_card.add_layout(silence_layout); self.add_widget(self.stt_card)
-        self.ocr_card = SettingsCard(); ocr_lang_layout = QHBoxLayout(); self.ocr_source_label = QLabel()
-        ocr_lang_layout.addWidget(self.ocr_source_label); self.ocr_source_combo = self.create_lang_combo(is_source=True); ocr_lang_layout.addWidget(self.ocr_source_combo); ocr_lang_layout.addStretch()
-        self.ocr_target_label = QLabel(); ocr_lang_layout.addWidget(self.ocr_target_label); self.ocr_target_combo = self.create_lang_combo(is_source=False); ocr_lang_layout.addWidget(self.ocr_target_combo); self.ocr_card.add_layout(ocr_lang_layout)
-        ocr_mode_layout = QHBoxLayout(); self.ocr_mode_label = QLabel(); ocr_mode_layout.addWidget(self.ocr_mode_label); self.ocr_mode_combo = QComboBox(); self.ocr_mode_combo.addItems(["Standard Overlay", "Patch Mode"]); ocr_mode_layout.addWidget(self.ocr_mode_combo); ocr_mode_layout.addStretch(); self.ocr_card.add_layout(ocr_mode_layout); self.add_widget(self.ocr_card)
+        self.title_label = TitleLabel()
+        self.desc_label = DescriptionLabel()
+        self.add_widget(self.title_label)
+        self.add_widget(self.desc_label)
+
+        # === STT 설정 카드 ===
+        self.stt_card = SettingsCard()
+        # 언어 설정
+        stt_lang_layout = QHBoxLayout()
+        self.stt_source_label = QLabel()
+        stt_lang_layout.addWidget(self.stt_source_label)
+        self.stt_source_combo = self.create_lang_combo(is_source=True)
+        stt_lang_layout.addWidget(self.stt_source_combo)
+        stt_lang_layout.addStretch()
+        self.stt_target_label = QLabel()
+        stt_lang_layout.addWidget(self.stt_target_label)
+        self.stt_target_combo = self.create_lang_combo(is_source=False)
+        stt_lang_layout.addWidget(self.stt_target_combo)
+        self.stt_card.add_layout(stt_lang_layout)
+        
+        # VAD 민감도 설정
+        vad_layout = QHBoxLayout()
+        self.vad_label = QLabel()
+        vad_layout.addWidget(self.vad_label)
+        self.vad_slider = QSlider(Qt.Orientation.Horizontal)
+        self.vad_slider.setRange(1, 3)
+        self.vad_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        vad_layout.addWidget(self.vad_slider)
+        self.stt_card.add_layout(vad_layout)
+        
+        # [신규] 무음 인식 레벨(dB) 설정
+        silence_db_layout = QHBoxLayout()
+        self.silence_db_label = QLabel()
+        silence_db_layout.addWidget(self.silence_db_label)
+        self.silence_db_slider = QSlider(Qt.Orientation.Horizontal)
+        self.silence_db_slider.setRange(-70, -30) # -70dB (매우 민감) ~ -30dB (둔감)
+        self.silence_db_value_label = QLabel("-50 dB")
+        self.silence_db_value_label.setFixedWidth(50)
+        silence_db_layout.addWidget(self.silence_db_slider)
+        silence_db_layout.addWidget(self.silence_db_value_label)
+        self.stt_card.add_layout(silence_db_layout)
+        self.silence_db_slider.valueChanged.connect(lambda v: self.silence_db_value_label.setText(f"{v} dB"))
+
+        # 문장 끊김 시간 설정
+        silence_sec_layout = QHBoxLayout()
+        self.silence_sec_label = QLabel()
+        silence_sec_layout.addWidget(self.silence_sec_label)
+        self.silence_sec_spinbox = QDoubleSpinBox() # 소수점 입력을 위해 QDoubleSpinBox 사용
+        self.silence_sec_spinbox.setRange(0.5, 5.0)
+        self.silence_sec_spinbox.setSingleStep(0.1)
+        silence_sec_layout.addWidget(self.silence_sec_spinbox)
+        self.stt_card.add_layout(silence_sec_layout)
+        self.add_widget(self.stt_card)
+
+        # === OCR 설정 카드 ===
+        self.ocr_card = SettingsCard()
+        ocr_lang_layout = QHBoxLayout()
+        self.ocr_source_label = QLabel()
+        ocr_lang_layout.addWidget(self.ocr_source_label)
+        self.ocr_source_combo = self.create_lang_combo(is_source=True)
+        ocr_lang_layout.addWidget(self.ocr_source_combo)
+        ocr_lang_layout.addStretch()
+        self.ocr_target_label = QLabel()
+        ocr_lang_layout.addWidget(self.ocr_target_label)
+        self.ocr_target_combo = self.create_lang_combo(is_source=False)
+        ocr_lang_layout.addWidget(self.ocr_target_combo)
+        self.ocr_card.add_layout(ocr_lang_layout)
+        
+        ocr_mode_layout = QHBoxLayout()
+        self.ocr_mode_label = QLabel()
+        ocr_mode_layout.addWidget(self.ocr_mode_label)
+        self.ocr_mode_combo = QComboBox()
+        self.ocr_mode_combo.addItems(["Standard Overlay", "Patch Mode"])
+        ocr_mode_layout.addWidget(self.ocr_mode_combo)
+        ocr_mode_layout.addStretch()
+        self.ocr_card.add_layout(ocr_mode_layout)
+        self.add_widget(self.ocr_card)
+        
         self.ocr_mode_combo.currentTextChanged.connect(self.ocr_mode_changed.emit)
 
     def create_lang_combo(self, is_source: bool):
-        combo = QComboBox(); lang_dict = DEEPL_LANGUAGES if is_source else TARGET_LANGUAGES
-        for name, code in lang_dict.items(): combo.addItem(name, code)
+        combo = QComboBox()
+        lang_dict = DEEPL_LANGUAGES if is_source else TARGET_LANGUAGES
+        for name, code in lang_dict.items():
+            combo.addItem(name, code)
         return combo
 
     def retranslate_ui(self):
-        self.title_label.setText(self.tr("TranslationSettingsPage", "Translation Settings")); self.desc_label.setText(self.tr("TranslationSettingsPage", "Configure language and mode for each translation feature."))
-        self.stt_card.title_label.setText(self.tr("TranslationSettingsPage", "Voice Translation (STT)")); self.stt_source_label.setText(self.tr("TranslationSettingsPage", "Source:")); self.stt_target_label.setText(self.tr("TranslationSettingsPage", "Target:")); self.vad_label.setText(self.tr("TranslationSettingsPage", "VAD Sensitivity (1=Low, 3=High):")); self.silence_label.setText(self.tr("TranslationSettingsPage", "Sentence-break Silence:")); self.silence_spinbox.setSuffix(self.tr("TranslationSettingsPage", " sec"))
-        self.ocr_card.title_label.setText(self.tr("TranslationSettingsPage", "Screen Translation (OCR)")); self.ocr_source_label.setText(self.tr("TranslationSettingsPage", "Source:")); self.ocr_target_label.setText(self.tr("TranslationSettingsPage", "Target:")); self.ocr_mode_label.setText(self.tr("TranslationSettingsPage", "Mode:"))
+        self.title_label.setText(self.tr("TranslationSettingsPage", "Translation Settings"))
+        self.desc_label.setText(self.tr("TranslationSettingsPage", "Configure language and mode for each translation feature."))
+        
+        self.stt_card.title_label.setText(self.tr("TranslationSettingsPage", "Voice Translation (STT)"))
+        self.stt_source_label.setText(self.tr("TranslationSettingsPage", "Source:"))
+        self.stt_target_label.setText(self.tr("TranslationSettingsPage", "Target:"))
+        self.vad_label.setText(self.tr("TranslationSettingsPage", "VAD Sensitivity (1=Low, 3=High):"))
+        # [수정] 라벨 텍스트 명확화
+        self.silence_db_label.setText(self.tr("TranslationSettingsPage", "Silence Threshold (dB):"))
+        self.silence_sec_label.setText(self.tr("TranslationSettingsPage", "Sentence-break Silence:"))
+        self.silence_sec_spinbox.setSuffix(self.tr("TranslationSettingsPage", " sec"))
+        
+        self.ocr_card.title_label.setText(self.tr("TranslationSettingsPage", "Screen Translation (OCR)"))
+        self.ocr_source_label.setText(self.tr("TranslationSettingsPage", "Source:"))
+        self.ocr_target_label.setText(self.tr("TranslationSettingsPage", "Target:"))
+        self.ocr_mode_label.setText(self.tr("TranslationSettingsPage", "Mode:"))
 
     def load_settings(self):
+        # STT 설정 불러오기
         self.stt_source_combo.setCurrentText(next((n for n, c in DEEPL_LANGUAGES.items() if c == self.config_manager.get("stt_source_language", "auto")), "Auto Detect"))
         self.stt_target_combo.setCurrentText(next((n for n, c in TARGET_LANGUAGES.items() if c == self.config_manager.get("stt_target_language", "auto")), "System Language"))
-        self.vad_slider.setValue(self.config_manager.get("vad_sensitivity", 3)); self.silence_spinbox.setValue(int(self.config_manager.get("silence_threshold_s", 1)))
+        self.vad_slider.setValue(self.config_manager.get("vad_sensitivity", 3))
+        # [수정] 새 설정 불러오기
+        silence_db = self.config_manager.get("silence_db_threshold", -50.0)
+        self.silence_db_slider.setValue(int(silence_db))
+        self.silence_db_value_label.setText(f"{int(silence_db)} dB")
+        self.silence_sec_spinbox.setValue(float(self.config_manager.get("silence_threshold_s", 1.5)))
+
+        # OCR 설정 불러오기
         self.ocr_source_combo.setCurrentText(next((n for n, c in DEEPL_LANGUAGES.items() if c == self.config_manager.get("ocr_source_language", "auto")), "Auto Detect"))
         self.ocr_target_combo.setCurrentText(next((n for n, c in TARGET_LANGUAGES.items() if c == self.config_manager.get("ocr_target_language", "auto")), "System Language"))
         self.ocr_mode_combo.setCurrentText(self.config_manager.get("ocr_mode", "Standard Overlay"))
 
     def save_settings(self):
-        self.config_manager.set("stt_source_language", self.stt_source_combo.currentData()); self.config_manager.set("stt_target_language", self.stt_target_combo.currentData())
-        self.config_manager.set("vad_sensitivity", self.vad_slider.value()); self.config_manager.set("silence_threshold_s", float(self.silence_spinbox.value()))
-        self.config_manager.set("ocr_source_language", self.ocr_source_combo.currentData()); self.config_manager.set("ocr_target_language", self.ocr_target_combo.currentData())
+        # STT 설정 저장
+        self.config_manager.set("stt_source_language", self.stt_source_combo.currentData())
+        self.config_manager.set("stt_target_language", self.stt_target_combo.currentData())
+        self.config_manager.set("vad_sensitivity", self.vad_slider.value())
+        # [수정] 새 설정 저장
+        self.config_manager.set("silence_db_threshold", float(self.silence_db_slider.value()))
+        self.config_manager.set("silence_threshold_s", self.silence_sec_spinbox.value())
+        
+        # OCR 설정 저장
+        self.config_manager.set("ocr_source_language", self.ocr_source_combo.currentData())
+        self.config_manager.set("ocr_target_language", self.ocr_target_combo.currentData())
         self.config_manager.set("ocr_mode", self.ocr_mode_combo.currentText())
 
+# ...
+# ... (StyleSettingsPage, SetupWindow, StandardOverlayPreviewDialog 클래스는 변경 없음)
+# ...
 class StyleSettingsPage(BaseSettingsPage):
     def __init__(self, config_manager: ConfigManager):
         super().__init__(config_manager)
@@ -269,15 +369,12 @@ class StyleSettingsPage(BaseSettingsPage):
     @Slot(str)
     def set_ocr_style_enabled(self, ocr_mode: str):
         enabled = ocr_mode == "Standard Overlay"
-        
         ocr_widgets = self.style_widgets.get('ocr', {})
         for widget_key, widget in ocr_widgets.items():
             if widget_key != 'preview_button' and hasattr(widget, 'setEnabled'):
                 widget.setEnabled(enabled)
-        
         if 'preview_button' in ocr_widgets:
             ocr_widgets['preview_button'].setEnabled(enabled)
-        
         self.ocr_disabled_label.setVisible(not enabled)
 
 class SetupWindow(QWidget):
@@ -328,8 +425,9 @@ class SetupWindow(QWidget):
     def apply_stylesheet(self):
         if self.program_page: self.program_page.save_settings(); theme = self.config_manager.get("app_theme", "dark")
         try:
-            qss_path = resource_path(f'assets/style_{"dark" if theme != "light" else "light"}.qss')
-            if theme == "custom": qss_path = resource_path('assets/style_template.qss')
+            base_qss_name = "style_dark.qss" if theme != "light" else "style_light.qss"
+            if theme == "custom": base_qss_name = "style_template.qss"
+            qss_path = resource_path(f'assets/styles/{base_qss_name}')
             with open(qss_path, 'r', encoding='utf-8') as f: qss = f.read()
             if theme == "custom":
                 custom_colors = self.config_manager.get("custom_theme_colors", {}); 
@@ -360,7 +458,6 @@ class SetupWindow(QWidget):
         self.closed.emit(); super().closeEvent(event)
 
 class StandardOverlayPreviewDialog(QDialog):
-    """STT와 OCR(Standard) 오버레이를 위한 범용 미리보기 대화 상자"""
     def __init__(self, style, parent=None):
         super().__init__(parent)
         self.style = style; self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool); self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground); self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
@@ -372,11 +469,8 @@ class StandardOverlayPreviewDialog(QDialog):
 
     def paintEvent(self, event):
         painter = QPainter(self); painter.setRenderHint(QPainter.RenderHint.Antialiasing); painter.setBrush(self.bg_color); painter.setPen(Qt.PenStyle.NoPen); painter.drawRoundedRect(self.rect(), 10, 10); super().paintEvent(event)
-    
     def showEvent(self, event): self.timer.start(4000); super().showEvent(event)
-
     def hideEvent(self, event): self.timer.stop(); super().hideEvent(event)
-    
     def update_text(self):
         self.animation.stop(); self.animation.setDuration(500); self.animation.setStartValue(1.0); self.animation.setEndValue(0.0); self.animation.setEasingCurve(QEasingCurve.Type.InQuad); self.animation.finished.connect(self._change_text_and_fade_in); self.animation.start()
 

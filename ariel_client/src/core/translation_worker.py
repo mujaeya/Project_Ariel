@@ -1,4 +1,4 @@
-# ariel_client/src/core/translation_worker.py (최종 수정안)
+# ariel_client/src/core/translation_worker.py (이 코드로 전체 교체)
 
 import pandas as pd
 from PySide6.QtCore import QObject, Slot, Signal, QRect, QLocale
@@ -8,7 +8,7 @@ import pytesseract
 import logging
 import wave
 import datetime
-import os  # [추가] 운영체제 경로 관리를 위해 추가
+import os
 
 from ..config_manager import ConfigManager
 from ..mt_engine import MTEngine
@@ -16,14 +16,13 @@ from ..api_client import APIClient
 
 logger = logging.getLogger(__name__)
 
-# [기존 코드 유지] DeepL 언어 코드를 Tesseract 코드로 매핑
 DEEPL_TO_TESSERACT = {
     'EN': 'eng', 'KO': 'kor', 'JA': 'jpn', 'ZH': 'chi_sim',
     'DE': 'deu', 'FR': 'fra', 'ES': 'spa',
 }
 
-# [기존 코드 유지]
 def aggregate_line_data(group):
+    # ... (기존과 동일, 변경 없음) ...
     text = ' '.join(group['text'].astype(str))
     conf = group['conf'].mean()
     x0 = group['left'].min()
@@ -36,15 +35,16 @@ def aggregate_line_data(group):
         return pd.Series({'text': text, 'conf': conf, 'rect': rect})
     return None
 
-# [기존 클래스 구조 유지]
 class TranslationWorker(QObject):
     stt_translation_ready = Signal(str, dict)
     ocr_patches_ready = Signal(list)
     error_occurred = Signal(str)
-    status_updated = Signal(str)
+    
+    stt_status_updated = Signal(str)
+    ocr_status_updated = Signal(str)
 
-    def __init__(self, config_manager: ConfigManager, parent: QObject | None = None):
-        super().__init__(parent)
+    def __init__(self, config_manager: ConfigManager):
+        super().__init__(None)
         self.config_manager = config_manager
         self._mt_engine = None
         self._api_client = None
@@ -66,6 +66,7 @@ class TranslationWorker(QObject):
         return self._api_client
 
     def _resolve_target_language(self, lang_code_from_config: str) -> str:
+        # ... (기존과 동일, 변경 없음) ...
         if lang_code_from_config == "auto":
             sys_lang = QLocale.system().name().split('_')[0].upper()
             return sys_lang
@@ -74,39 +75,17 @@ class TranslationWorker(QObject):
     @Slot(bytes, int)
     def process_stt_audio(self, audio_bytes: bytes, channels: int):
         try:
-            # =================== [디버깅 코드 추가 시작] ===================
-            try:
-                debug_folder = "debug_audio"
-                if not os.path.exists(debug_folder):
-                    os.makedirs(debug_folder)
-
-                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-                filename = os.path.join(debug_folder, f"stt_{timestamp}.wav")
-
-                sample_rate = 16000
-                sample_width = 2
-
-                with wave.open(filename, 'wb') as wf:
-                    wf.setnchannels(channels)
-                    wf.setsampwidth(sample_width)
-                    wf.setframerate(sample_rate)
-                    wf.writeframes(audio_bytes)
-                logger.info(f"✅ 디버그: 오디오 청크를 '{filename}' 파일로 저장했습니다.")
-            except Exception as e:
-                logger.error(f"❌ 디버그: 오디오 파일 저장 중 오류 발생: {e}")
-            # =================== [디버깅 코드 추가 끝] ===================
-
             logger.info(f"STT 오디오 처리 시작 (크기: {len(audio_bytes)} bytes, 채널: {channels})")
-            self.status_updated.emit("음성을 텍스트로 변환 중...")
+            self.stt_status_updated.emit(self.tr("Converting voice to text..."))
 
             original_text = self.api_client.stt(audio_bytes, channels)
 
             if not original_text or not original_text.strip():
                 logger.warning("STT 결과가 비어있습니다.")
-                self.status_updated.emit("음성 듣는 중...")
+                self.stt_status_updated.emit(self.tr("Listening for voice..."))
                 return
 
-            self.status_updated.emit("텍스트 번역 중...")
+            self.stt_status_updated.emit(self.tr("Translating text..."))
 
             target_lang_code = self._resolve_target_language(self.config_manager.get('stt_target_language', 'auto'))
             source_lang_code = self.config_manager.get('stt_source_language', 'auto')
@@ -115,34 +94,27 @@ class TranslationWorker(QObject):
             translated_text = self.mt_engine.translate_text(original_text, source_lang_param, target_lang_code)
 
             if translated_text is None:
-                self.error_occurred.emit("STT 번역에 실패했습니다.")
+                self.error_occurred.emit(self.tr("STT translation failed."))
                 return
 
             self.stt_translation_ready.emit(original_text, {target_lang_code: translated_text})
-            self.status_updated.emit("음성 듣는 중...")
+            self.stt_status_updated.emit(self.tr("Listening for voice..."))
 
         except Exception as e:
             logger.error(f"STT 오디오 처리 중 예외 발생: {e}", exc_info=True)
             self.error_occurred.emit(f"STT Error: {e}")
 
-    # [기존 OCR 메서드는 그대로 유지]
     @Slot(bytes)
     def process_ocr_image(self, image_bytes: bytes):
         try:
             ocr_source_lang_deepl = self.config_manager.get("ocr_source_language", "auto")
-
-            if ocr_source_lang_deepl != 'auto':
-                tess_lang = DEEPL_TO_TESSERACT.get(ocr_source_lang_deepl, 'eng+kor')
-            else:
-                tess_lang = 'eng+kor'
-
+            tess_lang = DEEPL_TO_TESSERACT.get(ocr_source_lang_deepl, 'eng+kor') if ocr_source_lang_deepl != 'auto' else 'eng+kor'
             target_lang = self._resolve_target_language(self.config_manager.get('ocr_target_language', 'auto'))
 
             logger.info(f"OCR 이미지 처리 시작 (Tesseract lang: {tess_lang}, DeepL Target: {target_lang})")
-            self.status_updated.emit("이미지에서 텍스트 추출 중...")
+            self.ocr_status_updated.emit(self.tr("Extracting text from image..."))
 
             image = Image.open(io.BytesIO(image_bytes))
-
             ocr_data = pytesseract.image_to_data(image, lang=tess_lang, output_type=pytesseract.Output.DATAFRAME)
 
             min_conf = self.config_manager.get("ocr_min_confidence", 30)
@@ -151,30 +123,31 @@ class TranslationWorker(QObject):
             if ocr_data.empty:
                 logger.warning(f"OCR 결과, 신뢰도 {min_conf} 이상의 유효한 텍스트를 찾지 못했습니다.")
                 self.ocr_patches_ready.emit([])
+                self.ocr_status_updated.emit("") # 상태 메시지 초기화
                 return
 
-            line_data = ocr_data.groupby(['page_num', 'block_num', 'par_num', 'line_num']).apply(aggregate_line_data).dropna().reset_index(drop=True)
+            line_data = ocr_data.groupby(['page_num', 'block_num', 'par_num', 'line_num']).apply(aggregate_line_data, include_groups=False).dropna().reset_index(drop=True)
 
             if line_data.empty:
                 self.ocr_patches_ready.emit([])
+                self.ocr_status_updated.emit("") # 상태 메시지 초기화
                 return
 
-            self.status_updated.emit(f"{len(line_data)}줄 번역 중...")
+            self.ocr_status_updated.emit(self.tr("Translating {n} lines...").format(n=len(line_data)))
 
             texts_to_translate = line_data['text'].tolist()
             source_lang_param = ocr_source_lang_deepl if ocr_source_lang_deepl != 'auto' else None
-
             translated_texts = self.mt_engine.translate_text(texts_to_translate, source_lang_param, target_lang)
 
             if not translated_texts:
-                self.error_occurred.emit("번역에 실패했습니다. API 키와 사용량을 확인하세요.")
+                self.error_occurred.emit(self.tr("Translation failed. Check API key and usage."))
                 return
 
             patches = [{'original': row['text'], 'translated': translated_texts[i], 'rect': row['rect']}
                        for i, row in line_data.iterrows() if i < len(translated_texts) and translated_texts[i]]
 
             self.ocr_patches_ready.emit(patches)
-            self.status_updated.emit("")
+            self.ocr_status_updated.emit("") # 상태 메시지 초기화
 
         except Exception as e:
             logger.error(f"OCR 이미지 처리 중 예외 발생: {e}", exc_info=True)

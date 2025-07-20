@@ -1,4 +1,7 @@
 # ariel_backend/main.py
+import os
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+import uvicorn
 from fastapi import FastAPI
 from api.v1 import endpoints
 import logging

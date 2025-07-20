@@ -67,10 +67,11 @@ def main():
 
     try:
         # [개선] 아이콘을 QIcon 객체로 먼저 로드하여 유효성을 검사합니다.
-        app_icon = QIcon(resource_path("assets/icons/app_icon.ico"))
+        # 앱 아이콘은 'images' 폴더로 이동하는 규칙에 따라 경로를 수정합니다.
+        app_icon = QIcon(resource_path("assets/images/app_icon.ico"))
         if app_icon.isNull():
             # 아이콘 로드 실패 시 사용자에게 명확한 오류 메시지를 표시하고 종료합니다.
-            error_msg = "애플리케이션 아이콘(app_icon.ico) 로드에 실패했습니다. assets/icons 폴더에 파일이 있는지 확인해주세요."
+            error_msg = "애플리케이션 아이콘(app_icon.ico) 로드에 실패했습니다. assets/images 폴더에 파일이 있는지 확인해주세요."
             logging.critical(error_msg)
             QMessageBox.critical(None, "파일 누락", error_msg)
             sys.exit(1)
