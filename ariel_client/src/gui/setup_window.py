@@ -173,8 +173,6 @@ class ProgramSettingsPage(BaseSettingsPage):
         custom_colors = {key: picker.color().name() for key, (_, _, picker) in self.color_pickers.items()}; self.config_manager.set("custom_theme_colors", custom_colors)
         for action, widget in self.hotkey_widgets.items(): self.config_manager.set(action, widget.keySequence().toString(QKeySequence.PortableText))
 
-# In setup_window.py:
-
 class TranslationSettingsPage(BaseSettingsPage):
     ocr_mode_changed = Signal(str)
     def __init__(self, config_manager: ConfigManager):
@@ -200,7 +198,7 @@ class TranslationSettingsPage(BaseSettingsPage):
         stt_lang_layout.addWidget(self.stt_target_combo)
         self.stt_card.add_layout(stt_lang_layout)
 
-        # 모델 선택 설정
+        # [스프린트 1 추가] 모델 선택 설정
         stt_model_layout = QHBoxLayout()
         self.stt_model_label = QLabel()
         stt_model_layout.addWidget(self.stt_model_label)
@@ -216,12 +214,42 @@ class TranslationSettingsPage(BaseSettingsPage):
 
         self.stt_card.add_layout(stt_model_layout)
         
-        # [핵심 변경] 시스템 오디오 루프백 전환으로 마이크/VAD 관련 UI 위젯 모두 제거
-        # VAD 민감도, 무음 인식 레벨, 문장 끊김 시간 관련 위젯 생성 코드 삭제
+        # VAD 민감도 설정
+        vad_layout = QHBoxLayout()
+        self.vad_label = QLabel()
+        vad_layout.addWidget(self.vad_label)
+        self.vad_slider = QSlider(Qt.Orientation.Horizontal)
+        self.vad_slider.setRange(1, 3)
+        self.vad_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        vad_layout.addWidget(self.vad_slider)
+        self.stt_card.add_layout(vad_layout)
+        
+        # 무음 인식 레벨(dB) 설정
+        silence_db_layout = QHBoxLayout()
+        self.silence_db_label = QLabel()
+        silence_db_layout.addWidget(self.silence_db_label)
+        self.silence_db_slider = QSlider(Qt.Orientation.Horizontal)
+        self.silence_db_slider.setRange(-70, -30) # -70dB (매우 민감) ~ -30dB (둔감)
+        self.silence_db_value_label = QLabel("-50 dB")
+        self.silence_db_value_label.setFixedWidth(50)
+        silence_db_layout.addWidget(self.silence_db_slider)
+        silence_db_layout.addWidget(self.silence_db_value_label)
+        self.stt_card.add_layout(silence_db_layout)
+        self.silence_db_slider.valueChanged.connect(lambda v: self.silence_db_value_label.setText(f"{v} dB"))
 
+        # 문장 끊김 시간 설정
+        silence_sec_layout = QHBoxLayout()
+        self.silence_sec_label = QLabel()
+        silence_sec_layout.addWidget(self.silence_sec_label)
+        self.silence_sec_spinbox = QDoubleSpinBox() # 소수점 입력을 위해 QDoubleSpinBox 사용
+        self.silence_sec_spinbox.setRange(0.5, 5.0)
+        self.silence_sec_spinbox.setSingleStep(0.1)
+        silence_sec_layout.addWidget(self.silence_sec_spinbox)
+        self.stt_card.add_layout(silence_sec_layout)
         self.add_widget(self.stt_card)
 
         # === OCR 설정 카드 ===
+        # ... (OCR 설정 카드 부분은 변경 없음) ...
         self.ocr_card = SettingsCard()
         ocr_lang_layout = QHBoxLayout()
         self.ocr_source_label = QLabel()
@@ -239,21 +267,13 @@ class TranslationSettingsPage(BaseSettingsPage):
         self.ocr_mode_label = QLabel()
         ocr_mode_layout.addWidget(self.ocr_mode_label)
         self.ocr_mode_combo = QComboBox()
-        # [시뮬레이션 V12.3 반영] OCR 모드 이름 변경 및 설명 추가
-        self.ocr_mode_combo.addItem("Standard Overlay", "standard") 
-        self.ocr_mode_combo.addItem("Style-Clone Patch", "patch") 
+        self.ocr_mode_combo.addItems(["Standard Overlay", "Patch Mode"])
         ocr_mode_layout.addWidget(self.ocr_mode_combo)
         ocr_mode_layout.addStretch()
         self.ocr_card.add_layout(ocr_mode_layout)
         self.add_widget(self.ocr_card)
         
-        self.ocr_mode_combo.currentTextChanged.connect(self.on_ocr_mode_text_changed)
-
-    # [시뮬레이션 V12.3 반영] OCR 모드 변경 시그널 수정
-    @Slot(str)
-    def on_ocr_mode_text_changed(self, text: str):
-        # 콤보박스의 현재 데이터('standard' 또는 'patch')를 시그널로 방출
-        self.ocr_mode_changed.emit(self.ocr_mode_combo.currentData())
+        self.ocr_mode_combo.currentTextChanged.connect(self.ocr_mode_changed.emit)
 
     def create_lang_combo(self, is_source: bool):
         combo = QComboBox()
@@ -269,10 +289,15 @@ class TranslationSettingsPage(BaseSettingsPage):
         self.stt_card.title_label.setText(self.tr("TranslationSettingsPage", "Voice Translation (STT)"))
         self.stt_source_label.setText(self.tr("TranslationSettingsPage", "Source:"))
         self.stt_target_label.setText(self.tr("TranslationSettingsPage", "Target:"))
+        
+        # [스프린트 1 추가] 모델 선택 UI 번역
         self.stt_model_label.setText(self.tr("TranslationSettingsPage", "STT Model:"))
         self.stt_model_desc.setText(self.tr("TranslationSettingsPage", "(Restart the backend server to apply)"))
 
-        # [핵심 변경] 제거된 UI의 번역 코드 삭제
+        self.vad_label.setText(self.tr("TranslationSettingsPage", "VAD Sensitivity (1=Low, 3=High):"))
+        self.silence_db_label.setText(self.tr("TranslationSettingsPage", "Silence Threshold (dB):"))
+        self.silence_sec_label.setText(self.tr("TranslationSettingsPage", "Sentence-break Silence:"))
+        self.silence_sec_spinbox.setSuffix(self.tr("TranslationSettingsPage", " sec"))
         
         self.ocr_card.title_label.setText(self.tr("TranslationSettingsPage", "Screen Translation (OCR)"))
         self.ocr_source_label.setText(self.tr("TranslationSettingsPage", "Source:"))
@@ -283,33 +308,40 @@ class TranslationSettingsPage(BaseSettingsPage):
         # STT 설정 불러오기
         self.stt_source_combo.setCurrentText(next((n for n, c in DEEPL_LANGUAGES.items() if c == self.config_manager.get("stt_source_language", "auto")), "Auto Detect"))
         self.stt_target_combo.setCurrentText(next((n for n, c in TARGET_LANGUAGES.items() if c == self.config_manager.get("stt_target_language", "auto")), "System Language"))
+        
+        # [스프린트 1 추가] 모델 설정 불러오기
         model_size = self.config_manager.get("stt_model_size", "medium")
         self.stt_model_combo.setCurrentText(next((name for name, code in WHISPER_MODELS.items() if code == model_size), "Medium (Recommended)"))
 
-        # [핵심 변경] 제거된 UI의 설정 불러오기 코드 삭제
-        
+        self.vad_slider.setValue(self.config_manager.get("vad_sensitivity", 3))
+        silence_db = self.config_manager.get("silence_db_threshold", -50.0)
+        self.silence_db_slider.setValue(int(silence_db))
+        self.silence_db_value_label.setText(f"{int(silence_db)} dB")
+        self.silence_sec_spinbox.setValue(float(self.config_manager.get("silence_threshold_s", 1.5)))
+
         # OCR 설정 불러오기
+        # ... (OCR 설정 불러오기 부분은 변경 없음) ...
         self.ocr_source_combo.setCurrentText(next((n for n, c in DEEPL_LANGUAGES.items() if c == self.config_manager.get("ocr_source_language", "auto")), "Auto Detect"))
         self.ocr_target_combo.setCurrentText(next((n for n, c in TARGET_LANGUAGES.items() if c == self.config_manager.get("ocr_target_language", "auto")), "System Language"))
-        # [시뮬레이션 V12.3 반영] OCR 모드 설정 불러오기 수정
-        ocr_mode_code = self.config_manager.get("ocr_mode", "standard")
-        index = self.ocr_mode_combo.findData(ocr_mode_code)
-        self.ocr_mode_combo.setCurrentIndex(index if index != -1 else 0)
-
+        self.ocr_mode_combo.setCurrentText(self.config_manager.get("ocr_mode", "Standard Overlay"))
 
     def save_settings(self):
         # STT 설정 저장
         self.config_manager.set("stt_source_language", self.stt_source_combo.currentData())
         self.config_manager.set("stt_target_language", self.stt_target_combo.currentData())
+        
+        # [스프린트 1 추가] 모델 설정 저장
         self.config_manager.set("stt_model_size", self.stt_model_combo.currentData())
 
-        # [핵심 변경] 제거된 UI의 설정 저장 코드 삭제
+        self.config_manager.set("vad_sensitivity", self.vad_slider.value())
+        self.config_manager.set("silence_db_threshold", float(self.silence_db_slider.value()))
+        self.config_manager.set("silence_threshold_s", self.silence_sec_spinbox.value())
         
         # OCR 설정 저장
+        # ... (OCR 설정 저장 부분은 변경 없음) ...
         self.config_manager.set("ocr_source_language", self.ocr_source_combo.currentData())
         self.config_manager.set("ocr_target_language", self.ocr_target_combo.currentData())
-        # [시뮬레이션 V12.3 반영] OCR 모드 설정 저장 수정
-        self.config_manager.set("ocr_mode", self.ocr_mode_combo.currentData())
+        self.config_manager.set("ocr_mode", self.ocr_mode_combo.currentText())
 
 # ... (StyleSettingsPage, SetupWindow, StandardOverlayPreviewDialog 클래스 및 main 코드는 변경 없이 동일) ...
 class StyleSettingsPage(BaseSettingsPage):

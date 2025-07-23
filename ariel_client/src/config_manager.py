@@ -20,9 +20,6 @@ class ConfigManager(QObject):
         self.file_path = os.path.join(base_path, file_name)
         self.config = self._load_or_create_config()
 
-# In class ConfigManager:
-# In class ConfigManager:
-# In class ConfigManager:
     def get_default_config(self):
         """프로그램의 모든 기본 설정을 반환합니다."""
         return {
@@ -32,47 +29,58 @@ class ConfigManager(QObject):
             "app_theme": "dark",
             "app_language": "auto",
 
-            # [V12.3] 오디오 입력 장치 인덱스 추가
-            "audio_input_device_index": -1, # -1은 장치가 선택되지 않았음을 의미
-
             # 번역 설정
             "stt_source_language": "auto",
             "stt_target_language": "auto",
             "ocr_source_language": "auto",
             "ocr_target_language": "auto",
-            
-            "vad_threshold": 0.5,
-            "vad_speech_pad_ms": 400,
-            "vad_min_silence_duration_ms": 800,
 
+            # 오디오 설정
+            "audio_input_device_index": None,
+            "use_vad": False,
+            "vad_sensitivity": 3,
+            "silence_db_threshold": -50.0,
+            "silence_threshold_s": 1.5,
+            "min_audio_length_s": 0.5,
+            "fixed_chunk_duration_s": 4.0,
+            
             # OCR 설정
             "ocr_mode": "Standard Overlay",
             
-            # ... 이하 설정은 동일 ...
+            # 오버레이 스타일 및 동작
             "stt_overlay_style": {
                 "font_family": "Malgun Gothic", "font_size": 18,
                 "font_color": "#FFFFFF", "background_color": "rgba(0, 0, 0, 0.8)",
                 "is_draggable": True,
+                # [추가] 오버레이 강화 기능 설정
                 "max_messages": 3,
                 "show_original_text": True,
-                "original_text_font_size_offset": -4,
-                "original_text_font_color": "#BBBBBB",
+                "original_text_font_size_offset": -4, # 원문 폰트 크기 오프셋
+                "original_text_font_color": "#BBBBBB", # 원문 폰트 색상
             },
             "ocr_overlay_style": {
                 "font_family": "Malgun Gothic", "font_size": 14,
                 "font_color": "#FFFFFF", "background_color": "rgba(20, 20, 20, 0.9)",
                 "is_draggable": True,
             },
+
+            # 오버레이 위치/크기
             "overlay_pos_x": None, "overlay_pos_y": None,
             "overlay_width": 800, "overlay_height": 250,
+
+            # 단축키
             "hotkey_toggle_stt": "alt+1", "hotkey_toggle_ocr": "alt+2",
             "hotkey_toggle_setup": "alt+`", "hotkey_quit_app": "alt+q",
+            
+            # 알림
             "notification_volume": 80,
             "sound_app_start": "assets/sounds/app_start.wav",
             "sound_stt_start": "assets/sounds/stt_start.wav",
             "sound_ocr_start": "assets/sounds/ocr_start.wav",
             "sound_stt_stop": "assets/sounds/stt_stop.wav",
             "sound_ocr_stop": "assets/sounds/ocr_stop.wav",
+            
+            # 커스텀 테마
             "custom_theme_colors": {
                 "BACKGROUND_PRIMARY": "#1e2b37", "BACKGROUND_SECONDARY": "#283747",
                 "BACKGROUND_TERTIARY": "#212f3c", "TEXT_PRIMARY": "#eaf2f8",
