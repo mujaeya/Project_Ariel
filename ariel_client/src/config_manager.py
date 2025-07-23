@@ -28,21 +28,21 @@ class ConfigManager(QObject):
             "deepl_api_key": "",
             "app_theme": "dark",
             "app_language": "auto",
-            
+
             # 번역 설정
             "stt_source_language": "auto",
             "stt_target_language": "auto",
             "ocr_source_language": "auto",
             "ocr_target_language": "auto",
-            
+
             # 오디오 설정
             "audio_input_device_index": None,
             "use_vad": False,
             "vad_sensitivity": 3,
             "silence_db_threshold": -50.0,
-            "silence_threshold_s": 1.5, # [수정] 기본값 1.0 -> 1.5
+            "silence_threshold_s": 1.5,
             "min_audio_length_s": 0.5,
-            "fixed_chunk_duration_s": 4.0, # [추가] VAD 미사용 시 고정 청크 시간
+            "fixed_chunk_duration_s": 4.0,
             
             # OCR 설정
             "ocr_mode": "Standard Overlay",
@@ -51,22 +51,23 @@ class ConfigManager(QObject):
             "stt_overlay_style": {
                 "font_family": "Malgun Gothic", "font_size": 18,
                 "font_color": "#FFFFFF", "background_color": "rgba(0, 0, 0, 0.8)",
-                "show_original_text": True,
-                "original_text_font_size_offset": -2,
-                "original_text_font_color": "#BBBBBB",
-                "max_messages": 3,
                 "is_draggable": True,
+                # [추가] 오버레이 강화 기능 설정
+                "max_messages": 3,
+                "show_original_text": True,
+                "original_text_font_size_offset": -4, # 원문 폰트 크기 오프셋
+                "original_text_font_color": "#BBBBBB", # 원문 폰트 색상
             },
             "ocr_overlay_style": {
                 "font_family": "Malgun Gothic", "font_size": 14,
                 "font_color": "#FFFFFF", "background_color": "rgba(20, 20, 20, 0.9)",
                 "is_draggable": True,
             },
-            
+
             # 오버레이 위치/크기
             "overlay_pos_x": None, "overlay_pos_y": None,
             "overlay_width": 800, "overlay_height": 250,
-            
+
             # 단축키
             "hotkey_toggle_stt": "alt+1", "hotkey_toggle_ocr": "alt+2",
             "hotkey_toggle_setup": "alt+`", "hotkey_quit_app": "alt+q",
@@ -90,6 +91,7 @@ class ConfigManager(QObject):
             },
         }
 
+    # ... 이하 코드는 변경 없음 ...
     def _load_or_create_config(self):
         default_config = self.get_default_config()
 
@@ -111,13 +113,13 @@ class ConfigManager(QObject):
                         if _update_recursively(target.get(key, {}), value):
                             is_updated = True
                 return is_updated
-            
+
             if _update_recursively(loaded_config, default_config):
                 config_updated = True
-            
+
             if config_updated:
                 self._save_config_to_file(loaded_config)
-            
+
             return loaded_config
         except (json.JSONDecodeError, IOError) as e:
             logger.error(f"설정 파일 로드/분석 실패 '{self.file_path}': {e}. 기본값으로 복원합니다.")
@@ -144,11 +146,11 @@ class ConfigManager(QObject):
         keys = key.split('.'); d = self.config
         for k in keys[:-1]: d = d.setdefault(k, {})
         d[keys[-1]] = value
-    
+
     def save(self):
         self._save_config_to_file(self.config)
         self.settings_changed.emit()
-    
+
     def reset_to_defaults(self):
         self.config = self.get_default_config()
         self.save()

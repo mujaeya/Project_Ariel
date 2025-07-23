@@ -1,13 +1,17 @@
-# ariel_client/src/gui/setup_window.py (무음 감지 설정 추가 최종본)
+# ariel_client/src/gui/setup_window.py (이 코드로 전체 교체)
+
+# ... (파일 시작부터 TranslationSettingsPage 클래스 이전까지 모든 코드는 변경 없이 동일) ...
+
+# ariel_client/src/gui/setup_window.py
 
 import sys
 import logging
 import random
 from PySide6.QtWidgets import (QApplication, QWidget, QHBoxLayout, QListWidget, QStackedWidget, QVBoxLayout,
                              QListWidgetItem, QPushButton, QSpacerItem, QSizePolicy, QLineEdit,
-                             QKeySequenceEdit, QLabel, QSlider, QMessageBox, QComboBox, 
+                             QKeySequenceEdit, QLabel, QSlider, QMessageBox, QComboBox,
                              QSpinBox, QColorDialog, QFrame, QFontComboBox, QFormLayout, QDialog,
-                             QGraphicsOpacityEffect, QDoubleSpinBox) # [추가] QDoubleSpinBox
+                             QGraphicsOpacityEffect, QDoubleSpinBox, QCheckBox)
 from PySide6.QtCore import Qt, Signal, QSize, QCoreApplication, QTranslator, QLocale, QTimer, QPropertyAnimation, QEasingCurve, Slot
 from PySide6.QtGui import QKeySequence, QColor, QFont, QScreen, QPainter, QFontMetrics
 
@@ -18,10 +22,6 @@ from .fluent_widgets import (NavigationItemWidget, SettingsPage, TitleLabel,
 
 logger = logging.getLogger(__name__)
 
-# ... (UI_LANGUAGES, DEEPL_LANGUAGES, TARGET_LANGUAGES, get_system_language, ColorPickerButton, BaseSettingsPage 클래스는 변경 없음)
-# ...
-# (이전 코드와 동일한 부분)
-# ...
 UI_LANGUAGES = {
     "Auto Detect": "auto", "English": "en", "Korean": "ko", "Japanese": "ja",
     "Chinese (Simplified)": "zh", "German": "de", "French": "fr", "Spanish": "es",
@@ -31,6 +31,14 @@ DEEPL_LANGUAGES = {
     "Chinese": "ZH", "German": "DE", "French": "FR", "Spanish": "ES",
 }
 TARGET_LANGUAGES = {"System Language": "auto", **{k: v for k, v in DEEPL_LANGUAGES.items() if v != 'auto'}}
+
+# [스프린트 1 추가] 사용 가능한 Whisper 모델 정의
+WHISPER_MODELS = {
+    "Base (Fastest)": "base",
+    "Small": "small",
+    "Medium (Recommended)": "medium",
+    "Large-v3 (Most Accurate)": "large-v3"
+}
 
 def get_system_language():
     lang = QLocale.system().name().split('_')[0]
@@ -64,9 +72,9 @@ class BaseSettingsPage(SettingsPage):
     def save_settings(self): pass
     def retranslate_ui(self): pass
     def tr(self, context, text): return QCoreApplication.translate(context, text)
-# ...
-# ... (ProgramSettingsPage 클래스는 변경 없음)
+
 class ProgramSettingsPage(BaseSettingsPage):
+    # ... (ProgramSettingsPage 클래스 전체 코드는 변경 없이 동일) ...
     """프로그램 기본 설정 페이지 (API 키, 테마, 볼륨, 단축키)"""
     language_changed = Signal(str)
     theme_changed = Signal()
@@ -164,7 +172,6 @@ class ProgramSettingsPage(BaseSettingsPage):
         self.config_manager.set("app_theme", self.theme_combo.currentText().lower()); self.config_manager.set("notification_volume", self.volume_slider.value())
         custom_colors = {key: picker.color().name() for key, (_, _, picker) in self.color_pickers.items()}; self.config_manager.set("custom_theme_colors", custom_colors)
         for action, widget in self.hotkey_widgets.items(): self.config_manager.set(action, widget.keySequence().toString(QKeySequence.PortableText))
-# ...
 
 class TranslationSettingsPage(BaseSettingsPage):
     ocr_mode_changed = Signal(str)
@@ -177,6 +184,7 @@ class TranslationSettingsPage(BaseSettingsPage):
 
         # === STT 설정 카드 ===
         self.stt_card = SettingsCard()
+        
         # 언어 설정
         stt_lang_layout = QHBoxLayout()
         self.stt_source_label = QLabel()
@@ -189,6 +197,22 @@ class TranslationSettingsPage(BaseSettingsPage):
         self.stt_target_combo = self.create_lang_combo(is_source=False)
         stt_lang_layout.addWidget(self.stt_target_combo)
         self.stt_card.add_layout(stt_lang_layout)
+
+        # [스프린트 1 추가] 모델 선택 설정
+        stt_model_layout = QHBoxLayout()
+        self.stt_model_label = QLabel()
+        stt_model_layout.addWidget(self.stt_model_label)
+        self.stt_model_combo = QComboBox()
+        for name, code in WHISPER_MODELS.items():
+            self.stt_model_combo.addItem(name, code)
+        stt_model_layout.addWidget(self.stt_model_combo)
+        stt_model_layout.addStretch()
+        
+        self.stt_model_desc = DescriptionLabel() # 모델 변경 시 재시작 안내 문구
+        self.stt_model_desc.setObjectName("cardDescriptionLabel")
+        stt_model_layout.addWidget(self.stt_model_desc)
+
+        self.stt_card.add_layout(stt_model_layout)
         
         # VAD 민감도 설정
         vad_layout = QHBoxLayout()
@@ -200,7 +224,7 @@ class TranslationSettingsPage(BaseSettingsPage):
         vad_layout.addWidget(self.vad_slider)
         self.stt_card.add_layout(vad_layout)
         
-        # [신규] 무음 인식 레벨(dB) 설정
+        # 무음 인식 레벨(dB) 설정
         silence_db_layout = QHBoxLayout()
         self.silence_db_label = QLabel()
         silence_db_layout.addWidget(self.silence_db_label)
@@ -225,6 +249,7 @@ class TranslationSettingsPage(BaseSettingsPage):
         self.add_widget(self.stt_card)
 
         # === OCR 설정 카드 ===
+        # ... (OCR 설정 카드 부분은 변경 없음) ...
         self.ocr_card = SettingsCard()
         ocr_lang_layout = QHBoxLayout()
         self.ocr_source_label = QLabel()
@@ -264,8 +289,12 @@ class TranslationSettingsPage(BaseSettingsPage):
         self.stt_card.title_label.setText(self.tr("TranslationSettingsPage", "Voice Translation (STT)"))
         self.stt_source_label.setText(self.tr("TranslationSettingsPage", "Source:"))
         self.stt_target_label.setText(self.tr("TranslationSettingsPage", "Target:"))
+        
+        # [스프린트 1 추가] 모델 선택 UI 번역
+        self.stt_model_label.setText(self.tr("TranslationSettingsPage", "STT Model:"))
+        self.stt_model_desc.setText(self.tr("TranslationSettingsPage", "(Restart the backend server to apply)"))
+
         self.vad_label.setText(self.tr("TranslationSettingsPage", "VAD Sensitivity (1=Low, 3=High):"))
-        # [수정] 라벨 텍스트 명확화
         self.silence_db_label.setText(self.tr("TranslationSettingsPage", "Silence Threshold (dB):"))
         self.silence_sec_label.setText(self.tr("TranslationSettingsPage", "Sentence-break Silence:"))
         self.silence_sec_spinbox.setSuffix(self.tr("TranslationSettingsPage", " sec"))
@@ -279,14 +308,19 @@ class TranslationSettingsPage(BaseSettingsPage):
         # STT 설정 불러오기
         self.stt_source_combo.setCurrentText(next((n for n, c in DEEPL_LANGUAGES.items() if c == self.config_manager.get("stt_source_language", "auto")), "Auto Detect"))
         self.stt_target_combo.setCurrentText(next((n for n, c in TARGET_LANGUAGES.items() if c == self.config_manager.get("stt_target_language", "auto")), "System Language"))
+        
+        # [스프린트 1 추가] 모델 설정 불러오기
+        model_size = self.config_manager.get("stt_model_size", "medium")
+        self.stt_model_combo.setCurrentText(next((name for name, code in WHISPER_MODELS.items() if code == model_size), "Medium (Recommended)"))
+
         self.vad_slider.setValue(self.config_manager.get("vad_sensitivity", 3))
-        # [수정] 새 설정 불러오기
         silence_db = self.config_manager.get("silence_db_threshold", -50.0)
         self.silence_db_slider.setValue(int(silence_db))
         self.silence_db_value_label.setText(f"{int(silence_db)} dB")
         self.silence_sec_spinbox.setValue(float(self.config_manager.get("silence_threshold_s", 1.5)))
 
         # OCR 설정 불러오기
+        # ... (OCR 설정 불러오기 부분은 변경 없음) ...
         self.ocr_source_combo.setCurrentText(next((n for n, c in DEEPL_LANGUAGES.items() if c == self.config_manager.get("ocr_source_language", "auto")), "Auto Detect"))
         self.ocr_target_combo.setCurrentText(next((n for n, c in TARGET_LANGUAGES.items() if c == self.config_manager.get("ocr_target_language", "auto")), "System Language"))
         self.ocr_mode_combo.setCurrentText(self.config_manager.get("ocr_mode", "Standard Overlay"))
@@ -295,39 +329,81 @@ class TranslationSettingsPage(BaseSettingsPage):
         # STT 설정 저장
         self.config_manager.set("stt_source_language", self.stt_source_combo.currentData())
         self.config_manager.set("stt_target_language", self.stt_target_combo.currentData())
+        
+        # [스프린트 1 추가] 모델 설정 저장
+        self.config_manager.set("stt_model_size", self.stt_model_combo.currentData())
+
         self.config_manager.set("vad_sensitivity", self.vad_slider.value())
-        # [수정] 새 설정 저장
         self.config_manager.set("silence_db_threshold", float(self.silence_db_slider.value()))
         self.config_manager.set("silence_threshold_s", self.silence_sec_spinbox.value())
         
         # OCR 설정 저장
+        # ... (OCR 설정 저장 부분은 변경 없음) ...
         self.config_manager.set("ocr_source_language", self.ocr_source_combo.currentData())
         self.config_manager.set("ocr_target_language", self.ocr_target_combo.currentData())
         self.config_manager.set("ocr_mode", self.ocr_mode_combo.currentText())
 
-# ...
-# ... (StyleSettingsPage, SetupWindow, StandardOverlayPreviewDialog 클래스는 변경 없음)
-# ...
+# ... (StyleSettingsPage, SetupWindow, StandardOverlayPreviewDialog 클래스 및 main 코드는 변경 없이 동일) ...
 class StyleSettingsPage(BaseSettingsPage):
+    # ... (StyleSettingsPage 클래스 전체 코드는 변경 없이 동일) ...
     def __init__(self, config_manager: ConfigManager):
         super().__init__(config_manager)
         self.preview_dialogs = {}
-        self.title_label = TitleLabel(); self.desc_label = DescriptionLabel()
-        self.add_widget(self.title_label); self.add_widget(self.desc_label)
+        self.title_label = TitleLabel()
+        self.desc_label = DescriptionLabel()
+        self.add_widget(self.title_label)
+        self.add_widget(self.desc_label)
         self.style_widgets = {}
 
-        self.stt_card = SettingsCard(); stt_widgets = self.create_style_controls(); self.style_widgets['stt'] = stt_widgets; self.stt_card.add_layout(self.create_style_layout(stt_widgets))
-        stt_preview_btn = QPushButton(); stt_preview_btn.clicked.connect(lambda: self.toggle_preview('stt')); stt_widgets['preview_button'] = stt_preview_btn; self.stt_card.add_widget(stt_preview_btn); self.add_widget(self.stt_card)
+        # STT 오버레이 설정 카드
+        self.stt_card = SettingsCard()
+        stt_widgets = self.create_style_controls()
+        self.style_widgets['stt'] = stt_widgets
+        self.stt_card.add_layout(self.create_style_layout(stt_widgets))
         
-        self.ocr_card = SettingsCard(); ocr_widgets = self.create_style_controls(); self.style_widgets['ocr'] = ocr_widgets; self.ocr_card.add_layout(self.create_style_layout(ocr_widgets))
-        self.ocr_disabled_label = DescriptionLabel(); self.ocr_disabled_label.setObjectName("cardDescriptionLabel"); self.ocr_card.add_widget(self.ocr_disabled_label); self.ocr_disabled_label.hide()
-        ocr_preview_btn = QPushButton(); ocr_preview_btn.clicked.connect(lambda: self.toggle_preview('ocr')); ocr_widgets['preview_button'] = ocr_preview_btn; self.ocr_card.add_widget(ocr_preview_btn); self.add_widget(self.ocr_card)
+        stt_preview_btn = QPushButton()
+        stt_preview_btn.clicked.connect(lambda: self.toggle_preview('stt'))
+        stt_widgets['preview_button'] = stt_preview_btn
+        self.stt_card.add_widget(stt_preview_btn)
+        self.add_widget(self.stt_card)
+        
+        # OCR 오버레이 설정 카드
+        self.ocr_card = SettingsCard()
+        ocr_widgets = self.create_style_controls(is_ocr=True) # OCR은 제한된 위젯만 생성
+        self.style_widgets['ocr'] = ocr_widgets
+        self.ocr_card.add_layout(self.create_style_layout(ocr_widgets, is_ocr=True))
+        
+        self.ocr_disabled_label = DescriptionLabel()
+        self.ocr_disabled_label.setObjectName("cardDescriptionLabel")
+        self.ocr_card.add_widget(self.ocr_disabled_label)
+        self.ocr_disabled_label.hide()
+        
+        ocr_preview_btn = QPushButton()
+        ocr_preview_btn.clicked.connect(lambda: self.toggle_preview('ocr'))
+        ocr_widgets['preview_button'] = ocr_preview_btn
+        self.ocr_card.add_widget(ocr_preview_btn)
+        self.add_widget(self.ocr_card)
 
     def get_current_style(self, overlay_type: str):
         widgets = self.style_widgets[overlay_type]
-        return {"font_family": widgets['font_combo'].currentFont().family(), "font_size": widgets['size_spin'].value(), "font_color": widgets['color_picker'].color(), "background_color": widgets['bg_picker'].color()}
+        style = {
+            "font_family": widgets['font_combo'].currentFont().family(),
+            "font_size": widgets['size_spin'].value(),
+            "font_color": widgets['color_picker'].color(),
+            "background_color": widgets['bg_picker'].color(),
+            "is_draggable": True, # 기본값
+        }
+        if overlay_type == 'stt':
+            style.update({
+                "max_messages": widgets['max_messages_spin'].value(),
+                "show_original_text": widgets['show_original_check'].isChecked(),
+                "original_text_font_size_offset": widgets['original_size_spin'].value(),
+                "original_text_font_color": widgets['original_color_picker'].color()
+            })
+        return style
 
     def toggle_preview(self, overlay_type: str):
+        # ... (미리보기 로직은 변경 없음) ...
         dialog = self.preview_dialogs.get(overlay_type)
         if dialog and dialog.isVisible():
             dialog.close()
@@ -339,32 +415,124 @@ class StyleSettingsPage(BaseSettingsPage):
         self.preview_dialogs[overlay_type] = dialog
         dialog.show()
         if screen := self.window().screen():
-            screen_center = screen.geometry().center(); dialog.move(screen_center - dialog.rect().center())
+            screen_center = screen.geometry().center()
+            dialog.move(screen_center - dialog.rect().center())
 
-    def create_style_controls(self):
-        widgets = {'font_label': QLabel(), 'font_combo': QFontComboBox(), 'size_label': QLabel(), 'size_spin': QSpinBox(), 'color_label': QLabel(), 'color_picker': ColorPickerButton(), 'bg_label': QLabel(), 'bg_picker': ColorPickerButton()}; widgets['size_spin'].setRange(8, 72); return widgets
+    def create_style_controls(self, is_ocr: bool = False):
+        """스타일 설정에 사용될 위젯 딕셔너리를 생성합니다."""
+        widgets = {
+            'font_label': QLabel(), 'font_combo': QFontComboBox(),
+            'size_label': QLabel(), 'size_spin': QSpinBox(),
+            'color_label': QLabel(), 'color_picker': ColorPickerButton(),
+            'bg_label': QLabel(), 'bg_picker': ColorPickerButton()
+        }
+        widgets['size_spin'].setRange(8, 72)
+        
+        if not is_ocr:
+            # [추가] STT 오버레이 전용 위젯들
+            widgets.update({
+                'max_messages_label': QLabel(),
+                'max_messages_spin': QSpinBox(),
+                'show_original_label': QLabel(),
+                'show_original_check': QCheckBox(),
+                'original_size_label': QLabel(),
+                'original_size_spin': QSpinBox(),
+                'original_color_label': QLabel(),
+                'original_color_picker': ColorPickerButton(),
+            })
+            widgets['max_messages_spin'].setRange(1, 3) # 최대 3개
+            widgets['original_size_spin'].setRange(-10, 0) # 번역문보다 작게 설정
+        return widgets
     
-    def create_style_layout(self, widgets):
-        form_layout = QFormLayout(); form_layout.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapAllRows); form_layout.addRow(widgets['font_label'], widgets['font_combo']); form_layout.addRow(widgets['size_label'], widgets['size_spin']); form_layout.addRow(widgets['color_label'], widgets['color_picker']); form_layout.addRow(widgets['bg_label'], widgets['bg_picker']); return form_layout
+    def create_style_layout(self, widgets, is_ocr: bool = False):
+        """위젯들을 Form 레이아웃에 배치합니다."""
+        form_layout = QFormLayout()
+        form_layout.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapAllRows)
+        form_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        
+        form_layout.addRow(widgets['font_label'], widgets['font_combo'])
+        form_layout.addRow(widgets['size_label'], widgets['size_spin'])
+        form_layout.addRow(widgets['color_label'], widgets['color_picker'])
+        form_layout.addRow(widgets['bg_label'], widgets['bg_picker'])
+        
+        if not is_ocr:
+            # [추가] STT 전용 위젯들을 레이아웃에 추가
+            form_layout.addRow(widgets['max_messages_label'], widgets['max_messages_spin'])
+            form_layout.addRow(widgets['show_original_label'], widgets['show_original_check'])
+            form_layout.addRow(widgets['original_size_label'], widgets['original_size_spin'])
+            form_layout.addRow(widgets['original_color_label'], widgets['original_color_picker'])
+        return form_layout
 
     def retranslate_ui(self):
-        self.title_label.setText(self.tr("StyleSettingsPage", "Overlay Style Settings")); self.desc_label.setText(self.tr("StyleSettingsPage", "Customize the appearance of translation overlays."))
-        self.stt_card.title_label.setText(self.tr("StyleSettingsPage", "Voice (STT) Overlay")); self.ocr_card.title_label.setText(self.tr("StyleSettingsPage", "Screen (OCR) Overlay"))
+        self.title_label.setText(self.tr("StyleSettingsPage", "Overlay Style Settings"))
+        self.desc_label.setText(self.tr("StyleSettingsPage", "Customize the appearance of translation overlays."))
+        self.stt_card.title_label.setText(self.tr("StyleSettingsPage", "Voice (STT) Overlay"))
+        self.ocr_card.title_label.setText(self.tr("StyleSettingsPage", "Screen (OCR) Overlay"))
         self.ocr_disabled_label.setText(self.tr("StyleSettingsPage", "Style settings are not applicable for Patch Mode as it clones the style from the source."))
+        
+        # 공통 스타일 위젯 번역
         for overlay_type in ['stt', 'ocr']:
-            widgets = self.style_widgets[overlay_type]; widgets['font_label'].setText(self.tr("StyleSettingsPage", "Font Family:")); widgets['size_label'].setText(self.tr("StyleSettingsPage", "Font Size:")); widgets['color_label'].setText(self.tr("StyleSettingsPage", "Font Color:")); widgets['bg_label'].setText(self.tr("StyleSettingsPage", "Background Color:")); widgets['preview_button'].setText(self.tr("StyleSettingsPage", "Preview"))
+            widgets = self.style_widgets[overlay_type]
+            widgets['font_label'].setText(self.tr("StyleSettingsPage", "Font Family:"))
+            widgets['size_label'].setText(self.tr("StyleSettingsPage", "Translated Font Size:"))
+            widgets['color_label'].setText(self.tr("StyleSettingsPage", "Translated Font Color:"))
+            widgets['bg_label'].setText(self.tr("StyleSettingsPage", "Background Color:"))
+            widgets['preview_button'].setText(self.tr("StyleSettingsPage", "Preview"))
+
+        # [추가] STT 전용 위젯 번역
+        stt_widgets = self.style_widgets['stt']
+        stt_widgets['max_messages_label'].setText(self.tr("StyleSettingsPage", "Max Messages:"))
+        stt_widgets['show_original_label'].setText(self.tr("StyleSettingsPage", "Show Original Text:"))
+        stt_widgets['original_size_label'].setText(self.tr("StyleSettingsPage", "Original Text Size (Offset):"))
+        stt_widgets['original_color_label'].setText(self.tr("StyleSettingsPage", "Original Text Color:"))
 
     def load_settings(self):
-        stt_style = self.config_manager.get("stt_overlay_style", {}); stt_widgets = self.style_widgets['stt']
-        stt_widgets['font_combo'].setCurrentFont(QFont(stt_style.get("font_family", "Malgun Gothic"))); stt_widgets['size_spin'].setValue(stt_style.get("font_size", 18)); stt_widgets['color_picker'].set_color(QColor(stt_style.get("font_color", "#FFFFFF"))); stt_widgets['bg_picker'].set_color(QColor(stt_style.get("background_color", "rgba(0,0,0,0.8)")))
-        ocr_style = self.config_manager.get("ocr_overlay_style", {}); ocr_widgets = self.style_widgets['ocr']
-        ocr_widgets['font_combo'].setCurrentFont(QFont(ocr_style.get("font_family", "Malgun Gothic"))); ocr_widgets['size_spin'].setValue(ocr_style.get("font_size", 14)); ocr_widgets['color_picker'].set_color(QColor(ocr_style.get("font_color", "#FFFFFF"))); ocr_widgets['bg_picker'].set_color(QColor(ocr_style.get("background_color", "rgba(20,20,20,0.9)")))
+        # STT 스타일 로드
+        stt_style = self.config_manager.get("stt_overlay_style", {})
+        stt_widgets = self.style_widgets['stt']
+        stt_widgets['font_combo'].setCurrentFont(QFont(stt_style.get("font_family", "Malgun Gothic")))
+        stt_widgets['size_spin'].setValue(stt_style.get("font_size", 18))
+        stt_widgets['color_picker'].set_color(QColor(stt_style.get("font_color", "#FFFFFF")))
+        stt_widgets['bg_picker'].set_color(QColor(stt_style.get("background_color", "rgba(0,0,0,0.8)")))
+        # [추가] STT 전용 설정 로드
+        stt_widgets['max_messages_spin'].setValue(stt_style.get("max_messages", 3))
+        stt_widgets['show_original_check'].setChecked(stt_style.get("show_original_text", True))
+        stt_widgets['original_size_spin'].setValue(stt_style.get("original_text_font_size_offset", -4))
+        stt_widgets['original_color_picker'].set_color(QColor(stt_style.get("original_text_font_color", "#BBBBBB")))
+        
+        # OCR 스타일 로드
+        ocr_style = self.config_manager.get("ocr_overlay_style", {})
+        ocr_widgets = self.style_widgets['ocr']
+        ocr_widgets['font_combo'].setCurrentFont(QFont(ocr_style.get("font_family", "Malgun Gothic")))
+        ocr_widgets['size_spin'].setValue(ocr_style.get("font_size", 14))
+        ocr_widgets['color_picker'].set_color(QColor(ocr_style.get("font_color", "#FFFFFF")))
+        ocr_widgets['bg_picker'].set_color(QColor(ocr_style.get("background_color", "rgba(20,20,20,0.9)")))
 
     def save_settings(self):
-        stt_style = self.config_manager.get("stt_overlay_style", {}); stt_widgets = self.style_widgets['stt']
-        stt_style["font_family"] = stt_widgets['font_combo'].currentFont().family(); stt_style["font_size"] = stt_widgets['size_spin'].value(); stt_style["font_color"] = stt_widgets['color_picker'].color().name(QColor.NameFormat.HexRgb); stt_style["background_color"] = stt_widgets['bg_picker'].color().name(QColor.NameFormat.HexArgb); self.config_manager.set("stt_overlay_style", stt_style)
-        ocr_style = self.config_manager.get("ocr_overlay_style", {}); ocr_widgets = self.style_widgets['ocr']
-        ocr_style["font_family"] = ocr_widgets['font_combo'].currentFont().family(); ocr_style["font_size"] = ocr_widgets['size_spin'].value(); ocr_style["font_color"] = ocr_widgets['color_picker'].color().name(QColor.NameFormat.HexRgb); ocr_style["background_color"] = ocr_widgets['bg_picker'].color().name(QColor.NameFormat.HexArgb); self.config_manager.set("ocr_overlay_style", ocr_style)
+        # STT 스타일 저장
+        stt_widgets = self.style_widgets['stt']
+        stt_style = {
+            "font_family": stt_widgets['font_combo'].currentFont().family(),
+            "font_size": stt_widgets['size_spin'].value(),
+            "font_color": stt_widgets['color_picker'].color().name(QColor.NameFormat.HexRgb),
+            "background_color": stt_widgets['bg_picker'].color().name(QColor.NameFormat.HexArgb),
+            # [추가] STT 전용 설정 저장
+            "max_messages": stt_widgets['max_messages_spin'].value(),
+            "show_original_text": stt_widgets['show_original_check'].isChecked(),
+            "original_text_font_size_offset": stt_widgets['original_size_spin'].value(),
+            "original_text_font_color": stt_widgets['original_color_picker'].color().name(QColor.NameFormat.HexRgb),
+        }
+        self.config_manager.set("stt_overlay_style", stt_style)
+        
+        # OCR 스타일 저장
+        ocr_widgets = self.style_widgets['ocr']
+        ocr_style = {
+            "font_family": ocr_widgets['font_combo'].currentFont().family(),
+            "font_size": ocr_widgets['size_spin'].value(),
+            "font_color": ocr_widgets['color_picker'].color().name(QColor.NameFormat.HexRgb),
+            "background_color": ocr_widgets['bg_picker'].color().name(QColor.NameFormat.HexArgb),
+        }
+        self.config_manager.set("ocr_overlay_style", ocr_style)
 
     @Slot(str)
     def set_ocr_style_enabled(self, ocr_mode: str):
@@ -378,6 +546,7 @@ class StyleSettingsPage(BaseSettingsPage):
         self.ocr_disabled_label.setVisible(not enabled)
 
 class SetupWindow(QWidget):
+    # ... (SetupWindow 클래스 전체 코드는 변경 없이 동일) ...
     closed = Signal()
     def __init__(self, config_manager: ConfigManager, parent=None):
         super().__init__(parent); self.config_manager = config_manager; self.translator = QTranslator(self); self.setObjectName("setupWindow"); self.setMinimumSize(960, 720)
@@ -458,6 +627,7 @@ class SetupWindow(QWidget):
         self.closed.emit(); super().closeEvent(event)
 
 class StandardOverlayPreviewDialog(QDialog):
+    # ... (StandardOverlayPreviewDialog 클래스 전체 코드는 변경 없이 동일) ...
     def __init__(self, style, parent=None):
         super().__init__(parent)
         self.style = style; self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool); self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground); self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
@@ -486,7 +656,7 @@ if __name__ == '__main__':
     app = QApplication(sys.argv); config_manager = ConfigManager()
     app_lang = config_manager.get("app_language", "auto")
     if app_lang == "auto": app_lang = get_system_language()
-    translator = QTranslator(); 
+    translator = QTranslator();
     translation_path = resource_path(f'translations/ariel_{app_lang}.qm')
     if translator.load(translation_path): app.installTranslator(translator)
     else: logging.warning(f"Could not load translation for '{app_lang}' from {translation_path}")
