@@ -4,8 +4,27 @@ import os
 import sys
 import logging
 from PySide6.QtCore import QObject, Signal
+import uuid 
 
 logger = logging.getLogger(__name__)
+
+# [해결] _update_recursively 함수를 파일의 적절한 위치에 정의합니다.
+def _update_recursively(d, u):
+    """
+    사전 d를 사전 u의 내용으로 재귀적으로 업데이트합니다.
+    u에 있는 키가 d에 없으면 추가하고, d와 u의 값이 모두 사전이면
+    재귀적으로 호출합니다.
+    d가 업데이트되었으면 True를 반환하고, 아니면 False를 반환합니다.
+    """
+    updated = False
+    for k, v in u.items():
+        if k not in d:
+            d[k] = v
+            updated = True
+        elif isinstance(d.get(k), dict) and isinstance(v, dict):
+            if _update_recursively(d[k], v):
+                updated = True
+    return updated
 
 class ConfigManager(QObject):
     settings_changed = Signal()
@@ -28,6 +47,11 @@ class ConfigManager(QObject):
             "deepl_api_key": "",
             "app_theme": "dark",
             "app_language": "auto",
+            "client_id": "",
+            "stt_model_size": "medium",
+            "stt_available_models": ["tiny", "base", "small", "medium"],
+            "stt_device": "auto",
+            "stt_compute_type": "auto",
 
             # 번역 설정
             "stt_source_language": "auto",
@@ -91,35 +115,44 @@ class ConfigManager(QObject):
             },
         }
 
-    # ... 이하 코드는 변경 없음 ...
     def _load_or_create_config(self):
         default_config = self.get_default_config()
+        config_updated = False # 플래그 초기화
 
         if not os.path.exists(self.file_path):
             self._save_config_to_file(default_config)
+            # 처음 생성 시 client_id를 추가해야 함
+            if not default_config.get("client_id"):
+                deepl_key = default_config.get("deepl_api_key", "")
+                if deepl_key and len(deepl_key) > 8:
+                    new_id = f"deepl_{deepl_key[:4]}_{deepl_key[-4:]}"
+                else:
+                    new_id = f"uuid_{str(uuid.uuid4())}"
+                default_config["client_id"] = new_id
+                logger.info(f"새로운 클라이언트 ID 생성: {new_id}")
+                self._save_config_to_file(default_config)
             return default_config
+        
         try:
             with open(self.file_path, 'r', encoding='utf-8') as f:
                 loaded_config = json.load(f)
 
-            config_updated = False
-            def _update_recursively(target, source):
-                is_updated = False
-                for key, value in source.items():
-                    if key not in target:
-                        target[key] = value
-                        is_updated = True
-                    elif isinstance(value, dict) and isinstance(target.get(key), dict):
-                        if _update_recursively(target.get(key, {}), value):
-                            is_updated = True
-                return is_updated
+            if not loaded_config.get("client_id"):
+                deepl_key = loaded_config.get("deepl_api_key", "")
+                if deepl_key and len(deepl_key) > 8:
+                    new_id = f"deepl_{deepl_key[:4]}_{deepl_key[-4:]}"
+                else:
+                    new_id = f"uuid_{str(uuid.uuid4())}"
+                loaded_config["client_id"] = new_id
+                logger.info(f"새로운 클라이언트 ID 생성: {new_id}")
+                config_updated = True
 
             if _update_recursively(loaded_config, default_config):
                 config_updated = True
 
             if config_updated:
                 self._save_config_to_file(loaded_config)
-
+            
             return loaded_config
         except (json.JSONDecodeError, IOError) as e:
             logger.error(f"설정 파일 로드/분석 실패 '{self.file_path}': {e}. 기본값으로 복원합니다.")
