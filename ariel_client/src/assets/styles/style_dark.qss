@@ -1,8 +1,7 @@
 /*
  * =====================================
- * Ariel - Dark Theme (v3.1 - Black/Gray)
+ * Ariel - Dark Theme (v3.3 - Patched)
  * =====================================
- * 블랙/그레이 톤으로 재조정하고 트레이 메뉴 및 메시지 박스 스타일을 포함한 최종 버전입니다.
  */
 
 * {
@@ -23,7 +22,12 @@
     background-color: #2f3136;
     border: none;
     border-right: 1px solid #202225;
-    padding-top: 20px;    
+    padding-top: 20px;
+}
+
+#settingsPage, QScrollArea, QScrollArea > QWidget > QWidget {
+    background: transparent;
+    border: none;
 }
 
 /* --- 네비게이션 아이템 --- */
@@ -31,21 +35,14 @@
     border-radius: 6px;
     padding: 5px;
     margin: 3px 8px;
-    color: #b9bbbe; /* 비선택 텍스트 색상 */
 }
 
 #navigationBar::item:selected {
     background-color: #40444b;
-    color: #ffffff; /* 선택된 텍스트 색상 */
 }
 
 #navigationBar::item:hover:!selected {
     background-color: #3b3e44;
-}
-
-#settingsPage, QScrollArea, QScrollArea > QWidget > QWidget {
-    background: transparent;
-    border: none;
 }
 
 /* --- 버튼 --- */
@@ -54,7 +51,7 @@ QPushButton {
     color: #ffffff;
     border: none;
     padding: 8px 16px;
-    border-radius: 4px;
+    border-radius: 6px;
     font-size: 13px;
     font-weight: 500;
 }
@@ -69,7 +66,8 @@ QPushButton:pressed {
 
 #primaryButton {
     background-color: #5865f2;
-    color: white;
+    color: #ffffff;
+    font-weight: bold;
 }
 
 #primaryButton:hover {
@@ -77,13 +75,12 @@ QPushButton:pressed {
 }
 
 #secondaryButton {
-    background-color: #36393f;
+    background-color: #40444b;
     color: #dcddde;
-    border: 1px solid #4f545c;
 }
 
 #secondaryButton:hover {
-    background-color: #40444b;
+    background-color: #4f545c;
 }
 
 #buttonBar {
@@ -110,7 +107,6 @@ QLabel {
 
 #navigationItemLabel {
     font-size: 13px;
-    /* 색상은 #navigationBar::item에서 직접 제어 */
 }
 
 #cardTitleLabel {
@@ -124,7 +120,7 @@ QLabel {
 QLineEdit, QKeySequenceEdit, QComboBox, QSpinBox {
     background-color: #202225;
     border: 1px solid #1a1b1e;
-    border-radius: 4px;
+    border-radius: 6px;
     padding: 6px;
     min-height: 20px;
 }
@@ -134,11 +130,21 @@ QLineEdit:focus, QKeySequenceEdit:focus, QComboBox:focus, QSpinBox:focus {
 }
 
 QComboBox::drop-down {
-    border: none;
+    subcontrol-origin: padding;
+    subcontrol-position: top right;
+    width: 25px;
+    border-left: 1px solid #1a1b1e;
+    border-top-right-radius: 6px;
+    border-bottom-right-radius: 6px;
+    background-color: #40444b;
+}
+
+QComboBox::drop-down:hover {
+    background-color: #4f545c;
 }
 
 QComboBox::down-arrow {
-    image: url(%ASSET_PATH%/icons/chevron_down_dark.svg);
+    image: url(%ASSET_PATH%/icons/chevron_down_light.svg);
     width: 14px;
     height: 14px;
 }
@@ -159,11 +165,11 @@ QSpinBox::up-button, QSpinBox::down-button {
 }
 QSpinBox::up-button {
     subcontrol-position: top right; margin-right: 2px;
-    image: url(%ASSET_PATH%/icons/chevron_up_dark.svg);
+    image: url(%ASSET_PATH%/icons/chevron_up_light.svg);
 }
 QSpinBox::down-button {
     subcontrol-position: bottom right; margin-right: 2px;
-    image: url(%ASSET_PATH%/icons/chevron_down_dark.svg);
+    image: url(%ASSET_PATH%/icons/chevron_down_light.svg);
 }
 QSpinBox::up-button:hover, QSpinBox::down-button:hover {
     background-color: #40444b; border-radius: 2px;
@@ -203,59 +209,92 @@ QSlider::handle:horizontal {
     padding: 15px;
 }
 
-/*
- * =====================================
- * System Tray Menu Style
- * =====================================
- */
+/* --- 시스템 메뉴 (트레이, 메시지박스) --- */
 QMenu {
-    background-color: #2f3136; /* 어두운 메뉴 배경 */
-    border: 1px solid #202225; /* 테두리 */
-    color: #dcddde;            /* 기본 글자색 */
+    background-color: #2f3136;
+    border: 1px solid #202225;
+    color: #dcddde;
     padding: 5px;
+    border-radius: 6px;
 }
-
 QMenu::item {
     padding: 8px 25px;
     border-radius: 4px;
 }
-
 QMenu::item:selected {
-    background-color: #5865f2; /* 포인트 색상 */
-    color: #ffffff;            /* 선택된 아이템 글자색 */
+    background-color: #5865f2;
+    color: #ffffff;
 }
-
 QMenu::separator {
     height: 1px;
-    background-color: #202225; /* 구분선 색상 */
+    background-color: #202225;
     margin: 4px 0px;
 }
 
-/* 
- * =====================================
- * [추가] 대화상자 (QMessageBox) 스타일
- * =====================================
- */
 QMessageBox {
-    background-color: #36393f; /* 다크 테마 배경색 */
+    background-color: #36393f;
 }
-
 QMessageBox QLabel {
-    color: #dcddde; /* 다크 테마 텍스트 색상 */
+    color: #dcddde;
     background-color: transparent;
 }
-
 QMessageBox QPushButton {
     min-width: 70px;
-    background-color: #4f545c; /* 일반 버튼 색상 */
+    background-color: #4f545c;
     color: #ffffff;
     border: none;
 }
-
 QMessageBox QPushButton:hover {
     background-color: #5d636b;
 }
-
 QMessageBox QPushButton:default {
-    background-color: #5865f2; /* 포인트 버튼 (Yes) */
+    background-color: #5865f2;
+    border: none;
+}
+QMessageBox QPushButton:default:hover {
+    background-color: #4e5bf0;
+}
+
+/* --- [FIX] 특수 대화상자 스타일 --- */
+#overlayPreviewDialog {
+    background: transparent;
+}
+
+QColorDialog {
+    background-color: #36393f;
+}
+
+/* [수정] QColorDialog의 핵심 콘텐츠 영역 배경을 명시적으로 지정 */
+QColorDialog > QWidget {
+    background-color: #36393f;
+}
+
+QColorDialog QGroupBox {
+    background-color: transparent;
+    border: none;
+}
+QColorDialog QLabel, QColorDialog QGroupBox {
+    color: #dcddde;
+}
+QColorDialog QLineEdit, QColorDialog QSpinBox {
+    background-color: #2f3136;
+    color: #dcddde;
+    border: 1px solid #202225;
+    border-radius: 4px;
+    padding: 4px;
+}
+QColorDialog QPushButton {
+    background-color: #4f545c;
+    color: #ffffff;
+    border: none;
+}
+QColorDialog QPushButton:hover {
+    background-color: #5d636b;
+}
+QColorDialog QPushButton[text="OK"], QColorDialog QPushButton[text="Add to Custom Colors"] {
+    background-color: #5865f2;
+    border: none;
+}
+QColorDialog QPushButton[text="OK"]:hover, QColorDialog QPushButton[text="Add to Custom Colors"]:hover {
+    background-color: #4e5bf0;
 }

@@ -1,8 +1,7 @@
 /*
  * ========================================
- * Ariel - Custom Theme Template (v2.2 - Merged)
+ * Ariel - Custom Theme Template (v3.3 - Patched)
  * ========================================
- * 이 파일의 %PLACEHOLDER% 변수들은 프로그램에 의해 실제 색상 값으로 대체됩니다.
  */
 
 * {
@@ -31,7 +30,7 @@
     border: none;
 }
 
-/* --- 네비게이션 바 아이템 --- */
+/* --- 네비게이션 아이템 --- */
 #navigationBar::item {
     border-radius: 6px;
     padding: 5px;
@@ -62,13 +61,14 @@ QPushButton:hover {
 }
 
 QPushButton:pressed {
-    background-color: %BACKGROUND_SECONDARY%;
+    background-color: %INTERACTIVE_NORMAL%;
 }
 
 #primaryButton {
     background-color: %INTERACTIVE_ACCENT%;
-    color: #ffffff; /* 흰색 텍스트로 고정하여 가독성 확보 */
+    color: #ffffff;
     font-weight: bold;
+    border: none;
 }
 
 #primaryButton:hover {
@@ -76,7 +76,7 @@ QPushButton:pressed {
 }
 
 #secondaryButton {
-    background-color: %BACKGROUND_SECONDARY%;
+    background-color: %BACKGROUND_TERTIARY%;
     color: %TEXT_PRIMARY%;
 }
 
@@ -90,6 +90,10 @@ QPushButton:pressed {
 }
 
 /* --- 라벨 및 텍스트 --- */
+QLabel {
+    background: transparent;
+}
+
 #titleLabel {
     font-size: 24pt;
     font-weight: bold;
@@ -114,7 +118,7 @@ QPushButton:pressed {
 }
 
 /* --- 입력 위젯 --- */
-QLineEdit, QKeySequenceEdit, QComboBox {
+QLineEdit, QKeySequenceEdit, QComboBox, QSpinBox {
     background-color: %BACKGROUND_TERTIARY%;
     border: 1px solid %BORDER_COLOR%;
     border-radius: 6px;
@@ -133,6 +137,11 @@ QComboBox::drop-down {
     border-left: 1px solid %BORDER_COLOR%;
     border-top-right-radius: 6px;
     border-bottom-right-radius: 6px;
+    background-color: %INTERACTIVE_NORMAL%;
+}
+
+QComboBox::drop-down:hover {
+    background-color: %INTERACTIVE_HOVER%;
 }
 
 QComboBox::down-arrow {
@@ -142,62 +151,55 @@ QComboBox::down-arrow {
 }
 
 QComboBox QAbstractItemView {
-    background-color: %BACKGROUND_TERTIARY%;
+    background-color: %BACKGROUND_SECONDARY%;
     border: 1px solid %BORDER_COLOR%;
     selection-background-color: %INTERACTIVE_ACCENT%;
     color: %TEXT_PRIMARY%;
     selection-color: #ffffff;
 }
 
-/* [개선] QSpinBox 상세 스타일 */
 QSpinBox {
-    background-color: %BACKGROUND_TERTIARY%;
-    border: 1px solid %BORDER_COLOR%;
-    border-radius: 6px;
-    padding: 4px;
     padding-right: 20px;
 }
 QSpinBox::up-button, QSpinBox::down-button {
-    subcontrol-origin: border;
-    width: 18px;
-    border: none;
+    subcontrol-origin: border; width: 18px; border: none;
 }
 QSpinBox::up-button {
-    subcontrol-position: top right;
-    margin-right: 2px;
+    subcontrol-position: top right; margin-right: 2px;
     image: url(%ASSET_PATH%/icons/chevron_up_light.svg);
 }
 QSpinBox::down-button {
-    subcontrol-position: bottom right;
-    margin-right: 2px;
+    subcontrol-position: bottom right; margin-right: 2px;
     image: url(%ASSET_PATH%/icons/chevron_down_light.svg);
 }
 QSpinBox::up-button:hover, QSpinBox::down-button:hover {
-    background-color: %INTERACTIVE_HOVER%;
-    border-radius: 2px;
+    background-color: %INTERACTIVE_HOVER%; border-radius: 2px;
 }
 
 /* --- 스크롤바 --- */
 QScrollBar:vertical {
-    border: none;
-    background: %BACKGROUND_SECONDARY%;
-    width: 10px;
-    margin: 0px;
+    border: none; background: %BACKGROUND_SECONDARY%;
+    width: 10px; margin: 0px;
 }
 QScrollBar::handle:vertical {
-    background: %INTERACTIVE_NORMAL%;
-    min-height: 20px;
-    border-radius: 5px;
+    background: %INTERACTIVE_NORMAL%; min-height: 20px; border-radius: 5px;
 }
 QScrollBar::handle:vertical:hover {
     background: %INTERACTIVE_HOVER%;
 }
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical,
 QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
-    border: none;
-    background: none;
-    height: 0px;
-    width: 0px;
+    border: none; background: none; height: 0px; width: 0px;
+}
+
+/* --- 슬라이더 --- */
+QSlider::groove:horizontal {
+    border: 1px solid %BORDER_COLOR%; height: 4px;
+    background: %BACKGROUND_TERTIARY%; margin: 2px 0; border-radius: 2px;
+}
+QSlider::handle:horizontal {
+    background: %INTERACTIVE_ACCENT%; border: 1px solid %INTERACTIVE_ACCENT%;
+    width: 16px; height: 16px; margin: -7px 0; border-radius: 8px;
 }
 
 /* --- 기타 위젯 --- */
@@ -208,82 +210,94 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
     padding: 15px;
 }
 
-QSlider::groove:horizontal {
+/* --- 시스템 메뉴 (트레이, 메시지박스) --- */
+QMenu {
+    background-color: %BACKGROUND_PRIMARY%;
     border: 1px solid %BORDER_COLOR%;
-    height: 4px;
-    background: %BACKGROUND_TERTIARY%;
-    margin: 2px 0;
-    border-radius: 2px;
+    color: %TEXT_PRIMARY%;
+    padding: 5px;
+    border-radius: 6px;
+}
+QMenu::item {
+    padding: 8px 25px;
+    border-radius: 4px;
+}
+QMenu::item:selected {
+    background-color: %INTERACTIVE_ACCENT%;
+    color: #ffffff;
+}
+QMenu::separator {
+    height: 1px;
+    background-color: %BORDER_COLOR%;
+    margin: 4px 0px;
 }
 
-QSlider::handle:horizontal {
-    background: %INTERACTIVE_ACCENT%;
-    border: 1px solid %INTERACTIVE_ACCENT%;
-    width: 16px;
-    height: 16px;
-    margin: -7px 0;
-    border-radius: 8px;
-}
-
-/* 
- * ========================================
- * [추가] 대화상자 (QMessageBox) 스타일
- * ========================================
- */
 QMessageBox {
     background-color: %BACKGROUND_SECONDARY%;
 }
-
 QMessageBox QLabel {
     color: %TEXT_PRIMARY%;
     background-color: transparent;
 }
-
 QMessageBox QPushButton {
     min-width: 70px;
     background-color: %INTERACTIVE_NORMAL%;
     color: %TEXT_PRIMARY%;
     border-color: %BORDER_COLOR%;
 }
-
 QMessageBox QPushButton:hover {
     background-color: %INTERACTIVE_HOVER%;
 }
-
 QMessageBox QPushButton:default {
     background-color: %INTERACTIVE_ACCENT%;
     color: #ffffff;
     border-color: %INTERACTIVE_ACCENT%;
 }
-
 QMessageBox QPushButton:default:hover {
     background-color: %INTERACTIVE_ACCENT_HOVER%;
 }
 
-/*
- * =====================================
- * System Tray Menu Style
- * =====================================
- */
-QMenu {
-    background-color: %BACKGROUND_PRIMARY%; /* 템플릿용. 다크/라이트에서는 실제 색상값으로 대체 */
-    border: 1px solid %BORDER_COLOR%;
+/* --- [FIX] 특수 대화상자 스타일 --- */
+#overlayPreviewDialog {
+    background: transparent;
+}
+
+QColorDialog {
+    background-color: %BACKGROUND_SECONDARY%;
+}
+
+/* [수정] QColorDialog의 핵심 콘텐츠 영역 배경을 명시적으로 지정 */
+QColorDialog > QWidget {
+    background-color: %BACKGROUND_SECONDARY%;
+}
+
+QColorDialog QGroupBox {
+    background-color: transparent;
+    border: none;
+}
+QColorDialog QLabel, QColorDialog QGroupBox {
     color: %TEXT_PRIMARY%;
-    padding: 5px;
 }
-
-QMenu::item {
-    padding: 8px 25px;
+QColorDialog QLineEdit, QColorDialog QSpinBox {
+    background-color: %BACKGROUND_TERTIARY%;
+    color: %TEXT_PRIMARY%;
+    border: 1px solid %BORDER_COLOR%;
     border-radius: 4px;
+    padding: 4px;
 }
-
-QMenu::item:selected {
+QColorDialog QPushButton {
+    background-color: %INTERACTIVE_NORMAL%;
+    color: %TEXT_PRIMARY%;
+    border-color: %BORDER_COLOR%;
+}
+QColorDialog QPushButton:hover {
+    background-color: %INTERACTIVE_HOVER%;
+}
+QColorDialog QPushButton[text="OK"], QColorDialog QPushButton[text="Add to Custom Colors"] {
     background-color: %INTERACTIVE_ACCENT%;
     color: #ffffff;
+    border-color: %INTERACTIVE_ACCENT%;
 }
-
-QMenu::separator {
-    height: 1px;
-    background-color: %BORDER_COLOR%;
-    margin: 4px 0px;
+QColorDialog QPushButton[text="OK"]:hover, QColorDialog QPushButton[text="Add to Custom Colors"]:hover {
+    background-color: %INTERACTIVE_ACCENT_HOVER%;
 }

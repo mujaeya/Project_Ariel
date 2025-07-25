@@ -1,8 +1,7 @@
 /*
  * =====================================
- * Ariel - Light Theme (v2.2 - Merged)
+ * Ariel - Light Theme (v3.3 - Patched)
  * =====================================
- * 기존의 밝은 테마를 유지하면서, 새로운 위젯 스타일과 구조적 개선 사항을 통합한 버전입니다.
  */
 
 * {
@@ -12,20 +11,26 @@
 
 /* --- 기본 창 및 레이아웃 --- */
 #setupWindow {
-    background-color: #e3e5e8; /* 가장 바깥쪽 배경 */
+    background-color: #e3e5e8;
 }
 
 #contentWidget {
-    background-color: #f2f3f5; /* 콘텐츠 영역 배경 */
+    background-color: #f2f3f5;
 }
 
 #navigationBar {
-    background-color: #ffffff; /* 네비게이션 바 배경 */
+    background-color: #ffffff;
     border: none;
     border-right: 1px solid #d5d7da;
     padding-top: 20px;
 }
 
+#settingsPage, QScrollArea, QScrollArea > QWidget > QWidget {
+    background: transparent;
+    border: none;
+}
+
+/* --- 네비게이션 아이템 --- */
 #navigationBar::item {
     border-radius: 6px;
     padding: 5px;
@@ -33,18 +38,13 @@
 }
 
 #navigationBar::item:selected {
-    background-color: #0056b3; /* 포인트 색상 */
-    color: #ffffff; /* 선택된 아이템 텍스트는 흰색 */
+    background-color: #0056b3;
 }
 
 #navigationBar::item:hover:!selected {
     background-color: #e3e5e8;
 }
 
-#settingsPage, QScrollArea, QScrollArea > QWidget > QWidget {
-    background: transparent;
-    border: none;
-}
 
 /* --- 버튼 --- */
 QPushButton {
@@ -119,7 +119,7 @@ QLabel {
 }
 
 /* --- 입력 위젯 --- */
-QLineEdit, QKeySequenceEdit, QComboBox {
+QLineEdit, QKeySequenceEdit, QComboBox, QSpinBox {
     background-color: #e3e5e8;
     border: 1px solid #d5d7da;
     border-radius: 6px;
@@ -138,10 +138,14 @@ QComboBox::drop-down {
     border-left: 1px solid #d5d7da;
     border-top-right-radius: 6px;
     border-bottom-right-radius: 6px;
+    background-color: #c9cdd1;
+}
+
+QComboBox::drop-down:hover {
+    background-color: #b9bbbe;
 }
 
 QComboBox::down-arrow {
-    /* 밝은 배경이므로 어두운 아이콘을 사용합니다. */
     image: url(%ASSET_PATH%/icons/chevron_down_dark.svg);
     width: 14px;
     height: 14px;
@@ -155,73 +159,48 @@ QComboBox QAbstractItemView {
     selection-color: #060607;
 }
 
-/* [개선] QSpinBox 스타일 */
 QSpinBox {
-    background-color: #e3e5e8;
-    border: 1px solid #d5d7da;
-    border-radius: 6px;
-    padding: 4px;
     padding-right: 20px;
 }
 QSpinBox::up-button, QSpinBox::down-button {
-    subcontrol-origin: border;
-    width: 18px;
-    border: none;
+    subcontrol-origin: border; width: 18px; border: none;
 }
 QSpinBox::up-button {
-    subcontrol-position: top right;
-    margin-right: 2px;
+    subcontrol-position: top right; margin-right: 2px;
     image: url(%ASSET_PATH%/icons/chevron_up_dark.svg);
 }
 QSpinBox::down-button {
-    subcontrol-position: bottom right;
-    margin-right: 2px;
+    subcontrol-position: bottom right; margin-right: 2px;
     image: url(%ASSET_PATH%/icons/chevron_down_dark.svg);
 }
 QSpinBox::up-button:hover, QSpinBox::down-button:hover {
-    background-color: #c9cdd1;
-    border-radius: 2px;
+    background-color: #c9cdd1; border-radius: 2px;
 }
 
 /* --- 스크롤바 --- */
 QScrollBar:vertical {
-    border: none;
-    background: #f2f3f5;
-    width: 10px;
-    margin: 0px;
+    border: none; background: #f2f3f5;
+    width: 10px; margin: 0px;
 }
 QScrollBar::handle:vertical {
-    background: #c9cdd1;
-    min-height: 20px;
-    border-radius: 5px;
+    background: #c9cdd1; min-height: 20px; border-radius: 5px;
 }
 QScrollBar::handle:vertical:hover {
     background: #b9bbbe;
 }
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical,
 QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
-    border: none;
-    background: none;
-    height: 0px;
-    width: 0px;
+    border: none; background: none; height: 0px; width: 0px;
 }
 
 /* --- 슬라이더 --- */
 QSlider::groove:horizontal {
-    border: 1px solid #d5d7da;
-    height: 4px;
-    background: #e3e5e8;
-    margin: 2px 0;
-    border-radius: 2px;
+    border: 1px solid #d5d7da; height: 4px;
+    background: #e3e5e8; margin: 2px 0; border-radius: 2px;
 }
-
 QSlider::handle:horizontal {
-    background: #0056b3;
-    border: 1px solid #0056b3;
-    width: 16px;
-    height: 16px;
-    margin: -7px 0;
-    border-radius: 8px;
+    background: #0056b3; border: 1px solid #0056b3;
+    width: 16px; height: 16px; margin: -7px 0; border-radius: 8px;
 }
 
 /* --- 기타 위젯 --- */
@@ -232,65 +211,94 @@ QSlider::handle:horizontal {
     padding: 15px;
 }
 
-/* 
- * =====================================
- * [추가] 대화상자 (QMessageBox) 스타일
- * =====================================
- */
+/* --- 시스템 메뉴 (트레이, 메시지박스) --- */
+QMenu {
+    background-color: #ffffff;
+    border: 1px solid #d5d7da;
+    color: #2e3338;
+    padding: 5px;
+    border-radius: 6px;
+}
+QMenu::item {
+    padding: 8px 25px;
+    border-radius: 4px;
+}
+QMenu::item:selected {
+    background-color: #0056b3;
+    color: #ffffff;
+}
+QMenu::separator {
+    height: 1px;
+    background-color: #d5d7da;
+    margin: 4px 0px;
+}
+
 QMessageBox {
     background-color: #f2f3f5;
 }
-
 QMessageBox QLabel {
     color: #2e3338;
     background-color: transparent;
 }
-
 QMessageBox QPushButton {
     min-width: 70px;
     background-color: #e3e5e8;
     color: #2e3338;
     border: 1px solid #d5d7da;
 }
-
 QMessageBox QPushButton:hover {
     background-color: #c9cdd1;
 }
-
 QMessageBox QPushButton:default {
     background-color: #0056b3;
     color: #ffffff;
     border: none;
 }
-
 QMessageBox QPushButton:default:hover {
     background-color: #004f9e;
 }
 
-/*
- * =====================================
- * System Tray Menu Style
- * =====================================
- */
-QMenu {
-    background-color: %BACKGROUND_PRIMARY%; /* 템플릿용. 다크/라이트에서는 실제 색상값으로 대체 */
-    border: 1px solid %BORDER_COLOR%;
-    color: %TEXT_PRIMARY%;
-    padding: 5px;
+/* --- [FIX] 특수 대화상자 스타일 --- */
+#overlayPreviewDialog {
+    background: transparent;
 }
 
-QMenu::item {
-    padding: 8px 25px;
+QColorDialog {
+    background-color: #f2f3f5;
+}
+
+/* [수정] QColorDialog의 핵심 콘텐츠 영역 배경을 명시적으로 지정 */
+QColorDialog > QWidget {
+    background-color: #f2f3f5;
+}
+
+QColorDialog QGroupBox {
+    background-color: transparent;
+    border: none;
+}
+QColorDialog QLabel, QColorDialog QGroupBox {
+    color: #2e3338;
+}
+QColorDialog QLineEdit, QColorDialog QSpinBox {
+    background-color: #e3e5e8;
+    color: #2e3338;
+    border: 1px solid #d5d7da;
     border-radius: 4px;
+    padding: 4px;
 }
-
-QMenu::item:selected {
-    background-color: %INTERACTIVE_ACCENT%;
+QColorDialog QPushButton {
+    background-color: #e3e5e8;
+    color: #2e3338;
+    border: 1px solid #d5d7da;
+}
+QColorDialog QPushButton:hover {
+    background-color: #c9cdd1;
+}
+QColorDialog QPushButton[text="OK"], QColorDialog QPushButton[text="Add to Custom Colors"] {
+    background-color: #0056b3;
     color: #ffffff;
+    border: none;
 }
-
-QMenu::separator {
-    height: 1px;
-    background-color: %BORDER_COLOR%;
-    margin: 4px 0px;
+QColorDialog QPushButton[text="OK"]:hover, QColorDialog QPushButton[text="Add to Custom Colors"]:hover {
+    background-color: #004f9e;
 }

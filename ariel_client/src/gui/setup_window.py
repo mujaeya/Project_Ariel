@@ -1,8 +1,7 @@
-# ariel_client/src/gui/setup_window.py (이 코드로 전체 교체)
+# ariel_client/src/gui/setup_window.py (수정된 최종본)
 
 import sys
 import logging
-# [해결] QPainter, QFontMetrics, QFont 등 누락된 모든 클래스를 import 합니다.
 from PySide6.QtGui import (QKeySequence, QColor, QFont, QPainter, QFontMetrics)
 from PySide6.QtWidgets import (QApplication, QWidget, QHBoxLayout, QListWidget, QStackedWidget, QVBoxLayout,
                              QListWidgetItem, QPushButton, QSpacerItem, QSizePolicy, QLineEdit,
@@ -19,7 +18,6 @@ from .fluent_widgets import (NavigationItemWidget, SettingsPage, TitleLabel,
 logger = logging.getLogger(__name__)
 
 # --- 설정값 정의 ---
-# (이 부분은 기존 코드와 동일하여 생략... 하려 했으나, 생략 없이 제공)
 UI_LANGUAGES = {
     "Auto Detect": "auto", "English": "en", "Korean": "ko", "Japanese": "ja",
     "Chinese (Simplified)": "zh", "German": "de", "French": "fr", "Spanish": "es",
@@ -30,17 +28,18 @@ DEEPL_LANGUAGES = {
 }
 TARGET_LANGUAGES = {"System Language": "auto", **{k: v for k, v in DEEPL_LANGUAGES.items() if v != 'auto'}}
 
-WHISPER_MODELS = {
-    "Base (Fastest)": "base",
-    "Small": "small",
-    "Medium (Recommended)": "medium",
-    "Large-v3 (Most Accurate)": "large-v3"
-}
-# --- ---
 
 def get_system_language():
     lang = QLocale.system().name().split('_')[0]
     return lang if lang in UI_LANGUAGES.values() else "en"
+
+class CustomFontComboBox(QFontComboBox):
+    def showPopup(self):
+        # 팝업이 표시될 때, 팝업 '창' 자체의 너비를
+        # 콤보박스 위젯의 현재 너비와 동일하게 고정합니다.
+        # self.view()는 목록 위젯이며, self.view().parentWidget()이 실제 팝업 창입니다.
+        self.view().parentWidget().setFixedWidth(self.width())
+        super().showPopup()
 
 class ColorPickerButton(QPushButton):
     colorChanged = Signal(QColor)
@@ -57,10 +56,31 @@ class ColorPickerButton(QPushButton):
     def update_style(self):
         border_color = "#8f9296" if self._color.lightness() > 127 else "#4f545c"
         self.setStyleSheet(f"background-color: {self._color.name()}; border-radius: 6px; border: 1px solid {border_color};")
+
     def on_click(self):
         title = QCoreApplication.translate("ColorPickerButton", "Select Color")
-        color = QColorDialog.getColor(self._color, self, title)
-        if color.isValid() and color != self._color: self.set_color(color); self.colorChanged.emit(color)
+        
+        # [FIX] Instantiate QColorDialog to gain full control over its appearance and behavior.
+        dialog = QColorDialog(self)
+        dialog.setWindowTitle(title)
+        
+        # [FIX] This is the crucial fix: It prevents the dialog from drawing its own
+        # system-native (or checkerboard) background, allowing our QSS style to apply.
+        dialog.setAttribute(Qt.WA_NoSystemBackground, True)
+        
+        # [FIX] Enable the alpha channel slider, essential for setting transparent backgrounds.
+        dialog.setOption(QColorDialog.ColorDialogOption.ShowAlphaChannel, True)
+        
+        # We still don't want the OS-native dialog, we want the Qt-rendered one.
+        dialog.setOption(QColorDialog.ColorDialogOption.DontUseNativeDialog, True)
+
+        dialog.setCurrentColor(self._color)
+
+        if dialog.exec():
+            color = dialog.currentColor()
+            if color.isValid() and color != self._color:
+                self.set_color(color)
+                self.colorChanged.emit(color)
 
 class BaseSettingsPage(SettingsPage):
     def __init__(self, config_manager: ConfigManager):
@@ -72,7 +92,6 @@ class BaseSettingsPage(SettingsPage):
     def tr(self, context, text): return QCoreApplication.translate(context, text)
 
 class ProgramSettingsPage(BaseSettingsPage):
-    # (이 클래스는 기존 코드와 동일)
     language_changed = Signal(str)
     theme_changed = Signal()
 
@@ -171,7 +190,6 @@ class ProgramSettingsPage(BaseSettingsPage):
         for action, widget in self.hotkey_widgets.items(): self.config_manager.set(action, widget.keySequence().toString(QKeySequence.PortableText))
 
 class TranslationSettingsPage(BaseSettingsPage):
-    # (이 클래스는 이전 버전과 동일)
     ocr_mode_changed = Signal(str)
 
     def __init__(self, config_manager: ConfigManager):
@@ -196,18 +214,6 @@ class TranslationSettingsPage(BaseSettingsPage):
         self.stt_target_combo = self.create_lang_combo(is_source=False)
         stt_lang_layout.addWidget(self.stt_target_combo)
         self.stt_card.add_layout(stt_lang_layout)
-
-        # STT 모델 선택 설정
-        stt_model_layout = QHBoxLayout()
-        self.stt_model_label = QLabel()
-        stt_model_layout.addWidget(self.stt_model_label)
-        self.stt_model_combo = QComboBox()
-        for name, code in WHISPER_MODELS.items():
-            self.stt_model_combo.addItem(name, code)
-        stt_model_layout.addWidget(self.stt_model_combo)
-        stt_model_layout.addStretch()
-        self.stt_card.add_layout(stt_model_layout)
-        
         self.add_widget(self.stt_card)
 
         # === OCR 설정 카드 ===
@@ -234,12 +240,7 @@ class TranslationSettingsPage(BaseSettingsPage):
         self.ocr_card.add_layout(ocr_mode_layout)
         self.add_widget(self.ocr_card)
         
-        # === 시그널 연결 ===
         self.ocr_mode_combo.currentTextChanged.connect(self.ocr_mode_changed.emit)
-        
-        self.stt_model_combo.currentIndexChanged.connect(
-            lambda: self.config_manager.set("stt_model_size", self.stt_model_combo.currentData())
-        )
 
     def create_lang_combo(self, is_source: bool):
         combo = QComboBox()
@@ -255,7 +256,6 @@ class TranslationSettingsPage(BaseSettingsPage):
         self.stt_card.title_label.setText(self.tr("TranslationSettingsPage", "Voice Translation (STT)"))
         self.stt_source_label.setText(self.tr("TranslationSettingsPage", "Source:"))
         self.stt_target_label.setText(self.tr("TranslationSettingsPage", "Target:"))
-        self.stt_model_label.setText(self.tr("TranslationSettingsPage", "STT Model:"))
         
         self.ocr_card.title_label.setText(self.tr("TranslationSettingsPage", "Screen Translation (OCR)"))
         self.ocr_source_label.setText(self.tr("TranslationSettingsPage", "Source:"))
@@ -266,11 +266,6 @@ class TranslationSettingsPage(BaseSettingsPage):
         self.stt_source_combo.setCurrentText(next((n for n, c in DEEPL_LANGUAGES.items() if c == self.config_manager.get("stt_source_language", "auto")), "Auto Detect"))
         self.stt_target_combo.setCurrentText(next((n for n, c in TARGET_LANGUAGES.items() if c == self.config_manager.get("stt_target_language", "auto")), "System Language"))
         
-        model_size = self.config_manager.get("stt_model_size", "medium")
-        self.stt_model_combo.blockSignals(True)
-        self.stt_model_combo.setCurrentText(next((name for name, code in WHISPER_MODELS.items() if code == model_size), "Medium (Recommended)"))
-        self.stt_model_combo.blockSignals(False)
-
         self.ocr_source_combo.setCurrentText(next((n for n, c in DEEPL_LANGUAGES.items() if c == self.config_manager.get("ocr_source_language", "auto")), "Auto Detect"))
         self.ocr_target_combo.setCurrentText(next((n for n, c in TARGET_LANGUAGES.items() if c == self.config_manager.get("ocr_target_language", "auto")), "System Language"))
         self.ocr_mode_combo.setCurrentText(self.config_manager.get("ocr_mode", "Standard Overlay"))
@@ -278,14 +273,12 @@ class TranslationSettingsPage(BaseSettingsPage):
     def save_settings(self):
         self.config_manager.set("stt_source_language", self.stt_source_combo.currentData())
         self.config_manager.set("stt_target_language", self.stt_target_combo.currentData())
-        self.config_manager.set("stt_model_size", self.stt_model_combo.currentData())
         
         self.config_manager.set("ocr_source_language", self.ocr_source_combo.currentData())
         self.config_manager.set("ocr_target_language", self.ocr_target_combo.currentData())
         self.config_manager.set("ocr_mode", self.ocr_mode_combo.currentText())
 
 class StyleSettingsPage(BaseSettingsPage):
-    # (이 클래스는 기존 코드와 대부분 동일하지만, 프리뷰 관련 로직이 강화됨)
     def __init__(self, config_manager: ConfigManager):
         super().__init__(config_manager)
         self.preview_dialogs = {}
@@ -315,8 +308,7 @@ class StyleSettingsPage(BaseSettingsPage):
         
         self.ocr_preview_btn = QPushButton()
         self.ocr_preview_btn.clicked.connect(lambda: self.toggle_preview('ocr'))
-        ocr_widgets['preview_button'] = self.ocr_preview_btn # 참조 저장
-        self.ocr_card.add_widget(self.ocr_preview_btn)
+        ocr_widgets['preview_button'] = self.ocr_preview_btn
         
         self.add_widget(self.ocr_card)
 
@@ -336,7 +328,6 @@ class StyleSettingsPage(BaseSettingsPage):
             })
         return style
 
-    # [수정] 프리뷰 토글 로직 강화
     def toggle_preview(self, overlay_type: str):
         dialog = self.preview_dialogs.get(overlay_type)
         if dialog and dialog.isVisible():
@@ -345,7 +336,6 @@ class StyleSettingsPage(BaseSettingsPage):
             
         style_dict = self.get_current_style(overlay_type)
         
-        # [핵심] '원본 표시' 설정을 딕셔너리에 포함시켜 전달
         if overlay_type == 'stt':
             style_dict['show_original_text'] = self.style_widgets['stt']['show_original_check'].isChecked()
 
@@ -359,7 +349,7 @@ class StyleSettingsPage(BaseSettingsPage):
 
     def create_style_controls(self, is_ocr: bool = False):
         widgets = {
-            'font_label': QLabel(), 'font_combo': QFontComboBox(),
+            'font_label': QLabel(), 'font_combo': CustomFontComboBox(),
             'size_label': QLabel(), 'size_spin': QSpinBox(),
             'color_label': QLabel(), 'color_picker': ColorPickerButton(),
             'bg_label': QLabel(), 'bg_picker': ColorPickerButton()
@@ -411,7 +401,6 @@ class StyleSettingsPage(BaseSettingsPage):
             widgets['color_label'].setText(self.tr("StyleSettingsPage", "Translated Font Color:"))
             widgets['bg_label'].setText(self.tr("StyleSettingsPage", "Background Color:"))
             
-            # [수정] 버튼 텍스트 설정 분리
             preview_btn = widgets.get('preview_button')
             if preview_btn and preview_btn.isEnabled():
                 preview_btn.setText(self.tr("StyleSettingsPage", "Preview"))
@@ -466,17 +455,14 @@ class StyleSettingsPage(BaseSettingsPage):
         }
         self.config_manager.set("ocr_overlay_style", ocr_style)
 
-    # [수정] OCR 모드에 따라 프리뷰 UI를 동적으로 변경하는 슬롯
     @Slot(str)
     def set_ocr_style_enabled(self, ocr_mode: str):
         enabled = ocr_mode == "Standard Overlay"
         
-        # OCR 설정 위젯 활성화/비활성화
         for widget in self.style_widgets['ocr'].values():
             if isinstance(widget, (QWidget, QLayout)):
                 widget.setEnabled(enabled)
 
-        # 프리뷰 버튼 상태 및 텍스트 변경
         preview_btn = self.style_widgets['ocr'].get('preview_button')
         if preview_btn:
             preview_btn.setEnabled(enabled)
@@ -486,7 +472,6 @@ class StyleSettingsPage(BaseSettingsPage):
                 preview_btn.setText(self.tr("StyleSettingsPage", "Preview"))
 
 class SetupWindow(QWidget):
-    # (이 클래스는 기존 코드와 동일)
     closed = Signal()
     def __init__(self, config_manager: ConfigManager, parent=None):
         super().__init__(parent); self.config_manager = config_manager; self.translator = QTranslator(self); self.setObjectName("setupWindow"); self.setMinimumSize(960, 720)
@@ -566,22 +551,20 @@ class SetupWindow(QWidget):
         self.style_page.preview_dialogs.clear()
         self.closed.emit(); super().closeEvent(event)
 
-# [수정] StandardOverlayPreviewDialog 클래스 수정
 class StandardOverlayPreviewDialog(QDialog):
     def __init__(self, style, parent=None):
         super().__init__(parent)
+        self.setObjectName("overlayPreviewDialog")
         self.style = style
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         
-        # 스타일 값 추출
         self.bg_color = QColor(self.style.get("background_color", QColor(0, 0, 0, 200)))
         self.font_color = QColor(self.style.get("font_color", QColor(255, 255, 255)))
         self.font = QFont(self.style.get("font_family", "Arial"), self.style.get("font_size", 18))
-        self.show_original = self.style.get("show_original_text", False) # 원본 표시 여부
+        self.show_original = self.style.get("show_original_text", False)
 
-        # 테스트 문장 설정
         self.test_sentences = [
             ("This is a preview.", "이것은 미리보기입니다."),
             ("The style will be applied.", "스타일이 적용됩니다."),
@@ -589,7 +572,6 @@ class StandardOverlayPreviewDialog(QDialog):
         ]
         self.current_sentence_index = 0
         
-        # 라벨 설정
         self.label = QLabel(self)
         self.label.setFont(self.font)
         self.label.setStyleSheet(f"color: {self.font_color.name()}; background: transparent;")
@@ -599,23 +581,20 @@ class StandardOverlayPreviewDialog(QDialog):
         layout.addWidget(self.label)
         self.setLayout(layout)
         
-        # 애니메이션 및 타이머 설정
         self.opacity_effect = QGraphicsOpacityEffect(self)
         self.setGraphicsEffect(self.opacity_effect)
         self.animation = QPropertyAnimation(self, b"opacity")
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_text)
         
-        self.update_text() # 첫 실행
+        self.update_text()
 
     def paintEvent(self, event):
-        # [수정] 여기서 QPainter를 사용
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setBrush(self.bg_color)
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawRoundedRect(self.rect(), 10, 10)
-        # super().paintEvent(event) # QLabel이 직접 그리므로 super 호출은 불필요
 
     def showEvent(self, event):
         self.timer.start(4000)
@@ -638,16 +617,15 @@ class StandardOverlayPreviewDialog(QDialog):
         try:
             self.animation.finished.disconnect(self._change_text_and_fade_in)
         except RuntimeError:
-            pass # 이미 연결이 끊긴 경우
+            pass
         
         original, translated = self.test_sentences[self.current_sentence_index]
         
-        # [핵심] 원본 표시 여부에 따라 텍스트 구성
         if self.show_original:
             offset = self.style.get("original_text_font_size_offset", -4)
-            orig_color = self.style.get("original_text_font_color", QColor("#BBBBBB")).name()
+            orig_color_name = QColor(self.style.get("original_text_font_color", "#BBBBBB")).name()
             display_text = (
-                f'<span style="font-size:{self.font.pointSize() + offset}pt; color:{orig_color};">{original}</span><br/>'
+                f'<span style="font-size:{self.font.pointSize() + offset}pt; color:{orig_color_name};">{original}</span><br/>'
                 f'{translated}'
             )
         else:
@@ -655,12 +633,10 @@ class StandardOverlayPreviewDialog(QDialog):
         
         self.label.setText(display_text)
         
-        # [수정] 텍스트 크기에 맞춰 창 크기 조절 (QFontMetrics 사용)
         fm = QFontMetrics(self.font)
-        # RichText의 실제 크기를 계산하기 위해 document 사용
         doc = self.label.document()
         doc.setHtml(display_text)
-        doc.setTextWidth(400) # 최대 너비 제한
+        doc.setTextWidth(400)
         self.setFixedSize(int(doc.idealWidth()) + 40, int(doc.size().height()) + 20)
         
         self.current_sentence_index = (self.current_sentence_index + 1) % len(self.test_sentences)
@@ -668,8 +644,6 @@ class StandardOverlayPreviewDialog(QDialog):
         self.animation.setEndValue(1.0)
         self.animation.start()
 
-
-# --- main 함수 (테스트용) ---
 if __name__ == '__main__':
     from ..config_manager import ConfigManager
     app = QApplication(sys.argv)
