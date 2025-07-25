@@ -1,6 +1,6 @@
 /*
  * ========================================
- * Ariel - Custom Theme Template (v3.3 - Patched)
+ * Ariel - Custom Theme Template (v3.5 - Final)
  * ========================================
  */
 
@@ -62,6 +62,12 @@ QPushButton:hover {
 
 QPushButton:pressed {
     background-color: %INTERACTIVE_NORMAL%;
+}
+
+QPushButton:disabled {
+    background-color: %BACKGROUND_TERTIARY%;
+    color: %TEXT_MUTED%;
+    border: 1px solid %BORDER_COLOR%;
 }
 
 #primaryButton {
@@ -203,12 +209,18 @@ QSlider::handle:horizontal {
 }
 
 /* --- 기타 위젯 --- */
-#settingsCard {
+#settingsCard, QFrame[objectName="settingsCard"] {
     background-color: %BACKGROUND_PRIMARY%;
     border-radius: 8px;
     border: 1px solid %BORDER_COLOR%;
     padding: 15px;
 }
+
+#settingsCard QLabel, QFrame[objectName="settingsCard"] QLabel {
+    color: %TEXT_MUTED%;
+    background-color: transparent;
+}
+
 
 /* --- 시스템 메뉴 (트레이, 메시지박스) --- */
 QMenu {
@@ -257,7 +269,7 @@ QMessageBox QPushButton:default:hover {
     background-color: %INTERACTIVE_ACCENT_HOVER%;
 }
 
-/* --- [FIX] 특수 대화상자 스타일 --- */
+/* --- 특수 대화상자 스타일 --- */
 #overlayPreviewDialog {
     background: transparent;
 }
@@ -266,18 +278,31 @@ QColorDialog {
     background-color: %BACKGROUND_SECONDARY%;
 }
 
-/* [수정] QColorDialog의 핵심 콘텐츠 영역 배경을 명시적으로 지정 */
-QColorDialog > QWidget {
-    background-color: %BACKGROUND_SECONDARY%;
+/* [수정] 그룹박스에 명시적인 배경색을 지정하여 내부 렌더링 오류를 덮음 */
+QColorDialog QGroupBox {
+    background-color: %BACKGROUND_PRIMARY%;
+    border: 1px solid %BORDER_COLOR%;
+    border-radius: 6px;
+    padding: 10px;
+    margin-top: 15px;
 }
 
-QColorDialog QGroupBox {
-    background-color: transparent;
-    border: none;
+/* 그룹박스 제목 스타일 */
+QColorDialog QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    padding: 0 5px;
+    left: 10px;
+    color: %TEXT_HEADER%;
+    background-color: %BACKGROUND_PRIMARY%;
 }
-QColorDialog QLabel, QColorDialog QGroupBox {
+
+/* 그룹박스 내부의 라벨은 배경이 투명해야 그룹박스 배경색 위에 올바르게 보임 */
+QColorDialog QGroupBox QLabel {
+    background-color: transparent;
     color: %TEXT_PRIMARY%;
 }
+
 QColorDialog QLineEdit, QColorDialog QSpinBox {
     background-color: %BACKGROUND_TERTIARY%;
     color: %TEXT_PRIMARY%;
@@ -285,14 +310,17 @@ QColorDialog QLineEdit, QColorDialog QSpinBox {
     border-radius: 4px;
     padding: 4px;
 }
+
 QColorDialog QPushButton {
     background-color: %INTERACTIVE_NORMAL%;
     color: %TEXT_PRIMARY%;
-    border-color: %BORDER_COLOR%;
+    border: 1px solid %BORDER_COLOR%;
+    min-width: 70px;
 }
 QColorDialog QPushButton:hover {
     background-color: %INTERACTIVE_HOVER%;
 }
+
 QColorDialog QPushButton[text="OK"], QColorDialog QPushButton[text="Add to Custom Colors"] {
     background-color: %INTERACTIVE_ACCENT%;
     color: #ffffff;

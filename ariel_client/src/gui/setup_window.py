@@ -1,8 +1,8 @@
-# ariel_client/src/gui/setup_window.py (수정된 최종본)
+# ariel_client/src/gui/setup_window.py (최종 수정본)
 
 import sys
 import logging
-from PySide6.QtGui import (QKeySequence, QColor, QFont, QPainter, QFontMetrics)
+from PySide6.QtGui import (QKeySequence, QColor, QFont, QPainter, QFontMetrics, QPalette)
 from PySide6.QtWidgets import (QApplication, QWidget, QHBoxLayout, QListWidget, QStackedWidget, QVBoxLayout,
                              QListWidgetItem, QPushButton, QSpacerItem, QSizePolicy, QLineEdit,
                              QKeySequenceEdit, QLabel, QSlider, QMessageBox, QComboBox,
@@ -35,9 +35,6 @@ def get_system_language():
 
 class CustomFontComboBox(QFontComboBox):
     def showPopup(self):
-        # 팝업이 표시될 때, 팝업 '창' 자체의 너비를
-        # 콤보박스 위젯의 현재 너비와 동일하게 고정합니다.
-        # self.view()는 목록 위젯이며, self.view().parentWidget()이 실제 팝업 창입니다.
         self.view().parentWidget().setFixedWidth(self.width())
         super().showPopup()
 
@@ -57,22 +54,22 @@ class ColorPickerButton(QPushButton):
         border_color = "#8f9296" if self._color.lightness() > 127 else "#4f545c"
         self.setStyleSheet(f"background-color: {self._color.name()}; border-radius: 6px; border: 1px solid {border_color};")
 
+    @Slot()
     def on_click(self):
         title = QCoreApplication.translate("ColorPickerButton", "Select Color")
         
-        # [FIX] Instantiate QColorDialog to gain full control over its appearance and behavior.
         dialog = QColorDialog(self)
         dialog.setWindowTitle(title)
         
-        # [FIX] This is the crucial fix: It prevents the dialog from drawing its own
-        # system-native (or checkerboard) background, allowing our QSS style to apply.
-        dialog.setAttribute(Qt.WA_NoSystemBackground, True)
+        # [핵심 수정] 코드 레벨에서 QPalette를 직접 설정하여 UI 일관성 확보
+        setup_window = self.window()
+        if setup_window and hasattr(setup_window, 'get_dialog_palette'):
+            palette = setup_window.get_dialog_palette()
+            dialog.setPalette(palette)
         
-        # [FIX] Enable the alpha channel slider, essential for setting transparent backgrounds.
-        dialog.setOption(QColorDialog.ColorDialogOption.ShowAlphaChannel, True)
-        
-        # We still don't want the OS-native dialog, we want the Qt-rendered one.
+        # 네이티브 대화상자 사용 금지 옵션은 여전히 중요
         dialog.setOption(QColorDialog.ColorDialogOption.DontUseNativeDialog, True)
+        dialog.setOption(QColorDialog.ColorDialogOption.ShowAlphaChannel, True)
 
         dialog.setCurrentColor(self._color)
 
@@ -142,7 +139,7 @@ class ProgramSettingsPage(BaseSettingsPage):
         self.color_pickers = {}
         colors_map = { "Primary Background": "BACKGROUND_PRIMARY", "Secondary Background": "BACKGROUND_SECONDARY", "Tertiary Background": "BACKGROUND_TERTIARY", "Primary Text": "TEXT_PRIMARY", "Header Text": "TEXT_HEADER", "Muted Text": "TEXT_MUTED", "Interactive Normal": "INTERACTIVE_NORMAL", "Interactive Hover": "INTERACTIVE_HOVER", "Interactive Accent": "INTERACTIVE_ACCENT", "Interactive Accent Hover": "INTERACTIVE_ACCENT_HOVER", "Border Color": "BORDER_COLOR" }
         for name_key, color_conf_key in colors_map.items():
-            layout, label = QHBoxLayout(), QLabel(); layout.addWidget(label); layout.addStretch(1); picker = ColorPickerButton(); picker.colorChanged.connect(self.theme_changed.emit)
+            layout, label = QHBoxLayout(), QLabel(); layout.addWidget(label); layout.addStretch(1); picker = ColorPickerButton(parent=self); picker.colorChanged.connect(self.theme_changed.emit)
             self.color_pickers[color_conf_key] = (label, name_key, picker); layout.addWidget(picker); self.custom_colors_card.add_layout(layout)
         self.add_widget(self.custom_colors_card)
         
@@ -186,7 +183,7 @@ class ProgramSettingsPage(BaseSettingsPage):
     def save_settings(self):
         self.config_manager.set("app_language", self.lang_combo.currentData()); self.config_manager.set("deepl_api_key", self.deepl_key_edit.text())
         self.config_manager.set("app_theme", self.theme_combo.currentText().lower()); self.config_manager.set("notification_volume", self.volume_slider.value())
-        custom_colors = {key: picker.color().name() for key, (_, _, picker) in self.color_pickers.items()}; self.config_manager.set("custom_theme_colors", custom_colors)
+        custom_colors = {key: picker.color().name(QColor.NameFormat.HexArgb) for key, (_, _, picker) in self.color_pickers.items()}; self.config_manager.set("custom_theme_colors", custom_colors)
         for action, widget in self.hotkey_widgets.items(): self.config_manager.set(action, widget.keySequence().toString(QKeySequence.PortableText))
 
 class TranslationSettingsPage(BaseSettingsPage):
@@ -309,6 +306,7 @@ class StyleSettingsPage(BaseSettingsPage):
         self.ocr_preview_btn = QPushButton()
         self.ocr_preview_btn.clicked.connect(lambda: self.toggle_preview('ocr'))
         ocr_widgets['preview_button'] = self.ocr_preview_btn
+        self.ocr_card.add_widget(self.ocr_preview_btn)
         
         self.add_widget(self.ocr_card)
 
@@ -351,8 +349,8 @@ class StyleSettingsPage(BaseSettingsPage):
         widgets = {
             'font_label': QLabel(), 'font_combo': CustomFontComboBox(),
             'size_label': QLabel(), 'size_spin': QSpinBox(),
-            'color_label': QLabel(), 'color_picker': ColorPickerButton(),
-            'bg_label': QLabel(), 'bg_picker': ColorPickerButton()
+            'color_label': QLabel(), 'color_picker': ColorPickerButton(parent=self),
+            'bg_label': QLabel(), 'bg_picker': ColorPickerButton(parent=self)
         }
         widgets['size_spin'].setRange(8, 72)
         
@@ -365,7 +363,7 @@ class StyleSettingsPage(BaseSettingsPage):
                 'original_size_label': QLabel(),
                 'original_size_spin': QSpinBox(),
                 'original_color_label': QLabel(),
-                'original_color_picker': ColorPickerButton(),
+                'original_color_picker': ColorPickerButton(parent=self),
             })
             widgets['max_messages_spin'].setRange(1, 3) 
             widgets['original_size_spin'].setRange(-10, 0)
@@ -458,11 +456,6 @@ class StyleSettingsPage(BaseSettingsPage):
     @Slot(str)
     def set_ocr_style_enabled(self, ocr_mode: str):
         enabled = ocr_mode == "Standard Overlay"
-        
-        for widget in self.style_widgets['ocr'].values():
-            if isinstance(widget, (QWidget, QLayout)):
-                widget.setEnabled(enabled)
-
         preview_btn = self.style_widgets['ocr'].get('preview_button')
         if preview_btn:
             preview_btn.setEnabled(enabled)
@@ -500,6 +493,60 @@ class SetupWindow(QWidget):
         for row in range(self.navigation_bar.count()):
             item = self.navigation_bar.item(row); widget = self.navigation_bar.itemWidget(item); is_selected = row == self.navigation_bar.currentRow(); item.setSelected(is_selected)
             if isinstance(widget, NavigationItemWidget): widget.set_active(is_selected, active_text_color if is_selected else inactive_text_color, active_icon_color if is_selected else inactive_icon_color)
+
+    # [핵심 추가] 테마에 맞는 QPalette를 생성하는 헬퍼 메서드
+    def get_dialog_palette(self) -> QPalette:
+        palette = QPalette()
+        theme = self.config_manager.get("app_theme", "dark")
+        
+        colors = {}
+        if theme == 'light':
+            colors = {
+                'window': QColor('#f2f3f5'), 'window_text': QColor('#2e3338'),
+                'base': QColor('#ffffff'), 'text': QColor('#2e3338'),
+                'button': QColor('#e3e5e8'), 'button_text': QColor('#2e3338'),
+                'highlight': QColor('#0056b3'), 'highlighted_text': QColor('#ffffff'),
+                'disabled_text': QColor('#9a9c9e'),
+            }
+        elif theme == 'custom':
+            custom = self.config_manager.get("custom_theme_colors", {})
+            defaults = self.config_manager.get_default_config()["custom_theme_colors"]
+            colors = {
+                'window': QColor(custom.get('BACKGROUND_SECONDARY', defaults['BACKGROUND_SECONDARY'])),
+                'window_text': QColor(custom.get('TEXT_PRIMARY', defaults['TEXT_PRIMARY'])),
+                'base': QColor(custom.get('BACKGROUND_PRIMARY', defaults['BACKGROUND_PRIMARY'])),
+                'text': QColor(custom.get('TEXT_PRIMARY', defaults['TEXT_PRIMARY'])),
+                'button': QColor(custom.get('INTERACTIVE_NORMAL', defaults['INTERACTIVE_NORMAL'])),
+                'button_text': QColor(custom.get('TEXT_PRIMARY', defaults['TEXT_PRIMARY'])),
+                'highlight': QColor(custom.get('INTERACTIVE_ACCENT', defaults['INTERACTIVE_ACCENT'])),
+                'highlighted_text': QColor('#ffffff'),
+                'disabled_text': QColor(custom.get('TEXT_MUTED', defaults['TEXT_MUTED'])),
+            }
+        else: # Dark theme is the default
+            colors = {
+                'window': QColor('#36393f'), 'window_text': QColor('#dcddde'),
+                'base': QColor('#2f3136'), 'text': QColor('#dcddde'),
+                'button': QColor('#4f545c'), 'button_text': QColor('#ffffff'),
+                'highlight': QColor('#5865f2'), 'highlighted_text': QColor('#ffffff'),
+                'disabled_text': QColor('#72767d'),
+            }
+
+        palette.setColor(QPalette.ColorRole.Window, colors['window'])
+        palette.setColor(QPalette.ColorRole.WindowText, colors['window_text'])
+        palette.setColor(QPalette.ColorRole.Base, colors['base'])
+        palette.setColor(QPalette.ColorRole.AlternateBase, colors['base'])
+        palette.setColor(QPalette.ColorRole.ToolTipBase, colors['window'])
+        palette.setColor(QPalette.ColorRole.ToolTipText, colors['window_text'])
+        palette.setColor(QPalette.ColorRole.Text, colors['text'])
+        palette.setColor(QPalette.ColorRole.Button, colors['button'])
+        palette.setColor(QPalette.ColorRole.ButtonText, colors['button_text'])
+        palette.setColor(QPalette.ColorRole.BrightText, QColor(Qt.GlobalColor.red))
+        palette.setColor(QPalette.ColorRole.Highlight, colors['highlight'])
+        palette.setColor(QPalette.ColorRole.HighlightedText, colors['highlighted_text'])
+        
+        palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text, colors['disabled_text'])
+        palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, colors['disabled_text'])
+        return palette
 
     def save_and_close(self):
         current_lang = self.config_manager.get("app_language", "auto"); [p.save_settings() for p in self.pages]; self.config_manager.save(); new_lang = self.config_manager.get("app_language")

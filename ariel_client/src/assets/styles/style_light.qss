@@ -1,6 +1,6 @@
 /*
  * =====================================
- * Ariel - Light Theme (v3.3 - Patched)
+ * Ariel - Light Theme (v3.5 - Final)
  * =====================================
  */
 
@@ -63,6 +63,12 @@ QPushButton:hover {
 
 QPushButton:pressed {
     background-color: #d5d7da;
+}
+
+QPushButton:disabled {
+    background-color: #f2f3f5;
+    color: #9a9c9e;
+    border: 1px solid #e3e5e8;
 }
 
 #primaryButton {
@@ -204,12 +210,18 @@ QSlider::handle:horizontal {
 }
 
 /* --- 기타 위젯 --- */
-#settingsCard {
+#settingsCard, QFrame[objectName="settingsCard"] {
     background-color: #ffffff;
     border-radius: 8px;
     border: 1px solid #e3e5e8;
     padding: 15px;
 }
+
+#settingsCard QLabel, QFrame[objectName="settingsCard"] QLabel {
+    color: #4f5660;
+    background-color: transparent;
+}
+
 
 /* --- 시스템 메뉴 (트레이, 메시지박스) --- */
 QMenu {
@@ -258,7 +270,7 @@ QMessageBox QPushButton:default:hover {
     background-color: #004f9e;
 }
 
-/* --- [FIX] 특수 대화상자 스타일 --- */
+/* --- 특수 대화상자 스타일 --- */
 #overlayPreviewDialog {
     background: transparent;
 }
@@ -267,18 +279,31 @@ QColorDialog {
     background-color: #f2f3f5;
 }
 
-/* [수정] QColorDialog의 핵심 콘텐츠 영역 배경을 명시적으로 지정 */
-QColorDialog > QWidget {
-    background-color: #f2f3f5;
+/* [수정] 그룹박스에 명시적인 배경색을 지정하여 내부 렌더링 오류를 덮음 */
+QColorDialog QGroupBox {
+    background-color: #ffffff;
+    border: 1px solid #e3e5e8;
+    border-radius: 6px;
+    padding: 10px;
+    margin-top: 15px;
 }
 
-QColorDialog QGroupBox {
-    background-color: transparent;
-    border: none;
+/* 그룹박스 제목 스타일 */
+QColorDialog QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    padding: 0 5px;
+    left: 10px;
+    color: #060607;
+    background-color: #ffffff;
 }
-QColorDialog QLabel, QColorDialog QGroupBox {
+
+/* 그룹박스 내부의 라벨은 배경이 투명해야 그룹박스 배경색 위에 올바르게 보임 */
+QColorDialog QGroupBox QLabel {
+    background-color: transparent;
     color: #2e3338;
 }
+
 QColorDialog QLineEdit, QColorDialog QSpinBox {
     background-color: #e3e5e8;
     color: #2e3338;
@@ -286,14 +311,17 @@ QColorDialog QLineEdit, QColorDialog QSpinBox {
     border-radius: 4px;
     padding: 4px;
 }
+
 QColorDialog QPushButton {
     background-color: #e3e5e8;
     color: #2e3338;
     border: 1px solid #d5d7da;
+    min-width: 70px;
 }
 QColorDialog QPushButton:hover {
     background-color: #c9cdd1;
 }
+
 QColorDialog QPushButton[text="OK"], QColorDialog QPushButton[text="Add to Custom Colors"] {
     background-color: #0056b3;
     color: #ffffff;
