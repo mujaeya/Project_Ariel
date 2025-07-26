@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE TS>
-<TS version="2.1" language="ko_KR">
+<TS version="2.1" language="ar_SA">
 <context>
     <name>ColorPickerButton</name>
     <message>
         <location filename="../../src/gui/setup_window.py" line="70"/>
         <source>Select Color</source>
-        <translation>색상 선택</translation>
+        <translation>تحديد لون</translation>
     </message>
 </context>
 <context>
@@ -14,147 +14,147 @@
     <message>
         <location filename="../../src/gui/setup_window.py" line="123"/>
         <source>Dark</source>
-        <translation>어둡게</translation>
+        <translation>داكن</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="123"/>
         <source>Light</source>
-        <translation>밝게</translation>
+        <translation>فاتح</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="123"/>
         <source>Custom</source>
-        <translation>사용자 정의</translation>
+        <translation>مخصص</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="145"/>
         <source>Start/Stop Voice Translation</source>
-        <translation>음성 번역 시작/중지</translation>
+        <translation>بدء/إيقاف الترجمة الصوتية</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="145"/>
         <source>Start/Stop Screen Translation</source>
-        <translation>화면 번역 시작/중지</translation>
+        <translation>بدء/إيقاف ترجمة الشاشة</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="145"/>
         <source>Open/Close Settings Window</source>
-        <translation>설정 창 열기/닫기</translation>
+        <translation>فتح/إغلاق نافذة الإعدادات</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="145"/>
         <source>Quit Program</source>
-        <translation>프로그램 종료</translation>
+        <translation>إنهاء البرنامج</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="161"/>
         <source>Program Settings</source>
-        <translation>프로그램 설정</translation>
+        <translation>إعدادات البرنامج</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="161"/>
         <source>Configure API key, theme, and global hotkeys.</source>
-        <translation>API 키, 테마, 전역 단축키를 설정합니다.</translation>
+        <translation>تكوين مفتاح API، السمة، ومفاتيح الاختصار العامة.</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="162"/>
         <source>UI Language</source>
-        <translation>UI 언어</translation>
+        <translation>لغة واجهة المستخدم</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="162"/>
         <source>Restart the program to apply language changes.</source>
-        <translation>언어 변경을 적용하려면 프로그램을 재시작해야 합니다.</translation>
+        <translation>أعد تشغيل البرنامج لتطبيق تغييرات اللغة.</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="163"/>
         <source>DeepL API Key</source>
-        <translation>DeepL API 키</translation>
+        <translation>مفتاح DeepL API</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="163"/>
         <source>API key is required for translation functions.</source>
-        <translation>번역 기능을 사용하려면 API 키가 필요합니다.</translation>
+        <translation>مفتاح API مطلوب لوظائف الترجمة.</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="164"/>
         <source>Enter your DeepL API Key</source>
-        <translation>DeepL API 키를 입력하세요</translation>
+        <translation>أدخل مفتاح DeepL API الخاص بك</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="164"/>
         <source>UI Theme</source>
-        <translation>UI 테마</translation>
+        <translation>سمة واجهة المستخدم</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="165"/>
         <source>Notification Sound Volume</source>
-        <translation>알림음 크기</translation>
+        <translation>مستوى صوت الإشعارات</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="165"/>
         <source>Custom Theme Colors</source>
-        <translation>사용자 정의 테마 색상</translation>
+        <translation>ألوان السمة المخصصة</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="166"/>
         <source>Global Hotkeys</source>
-        <translation>전역 단축키</translation>
+        <translation>مفاتيح الاختصار العامة</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="167"/>
         <source>Primary Background</source>
-        <translation>주 배경</translation>
+        <translation>الخلفية الأساسية</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="167"/>
         <source>Secondary Background</source>
-        <translation>보조 배경</translation>
+        <translation>الخلفية الثانوية</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="167"/>
         <source>Tertiary Background</source>
-        <translation>3차 배경</translation>
+        <translation>الخلفية الثالثة</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="167"/>
         <source>Primary Text</source>
-        <translation>주 텍스트</translation>
+        <translation>النص الأساسي</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="167"/>
         <source>Header Text</source>
-        <translation>헤더 텍스트</translation>
+        <translation>نص العنوان</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="167"/>
         <source>Muted Text</source>
-        <translation>음소거된 텍스트</translation>
+        <translation>النص المكتوم</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="167"/>
         <source>Interactive Normal</source>
-        <translation>상호작용 (일반)</translation>
+        <translation>تفاعلي (عادي)</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="167"/>
         <source>Interactive Hover</source>
-        <translation>상호작용 (호버)</translation>
+        <translation>تفاعلي (تحويم)</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="167"/>
         <source>Interactive Accent</source>
-        <translation>상호작용 (강조)</translation>
+        <translation>تفاعلي (مميز)</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="167"/>
         <source>Interactive Accent Hover</source>
-        <translation>상호작용 (강조 호버)</translation>
+        <translation>تفاعلي (تحويم مميز)</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="167"/>
         <source>Border Color</source>
-        <translation>테두리 색</translation>
+        <translation>لون الحدود</translation>
     </message>
 </context>
 <context>
@@ -162,47 +162,47 @@
     <message>
         <location filename="../../src/gui/setup_window.py" line="609"/>
         <source>Restart required</source>
-        <translation>재시작 필요</translation>
+        <translation>إعادة التشغيل مطلوبة</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="609"/>
         <source>UI language change requires a program restart to take full effect.</source>
-        <translation>UI 언어 변경을 완전히 적용하려면 프로그램을 재시작해야 합니다.</translation>
+        <translation>تغيير لغة الواجهة يتطلب إعادة تشغيل البرنامج ليتم تطبيقه بالكامل.</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="615"/>
         <source>Reset Settings</source>
-        <translation>설정 초기화</translation>
+        <translation>إعادة ضبط الإعدادات</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="616"/>
         <source>Are you sure you want to reset all settings to their default values?</source>
-        <translation>정말로 모든 설정을 기본값으로 초기화하시겠습니까?</translation>
+        <translation>هل أنت متأكد أنك تريد إعادة ضبط جميع الإعدادات إلى قيمها الافتراضية؟</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="620"/>
         <source>Complete</source>
-        <translation>완료</translation>
+        <translation>اكتمل</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="620"/>
         <source>All settings have been reset.</source>
-        <translation>모든 설정이 초기화되었습니다.</translation>
+        <translation>تمت إعادة ضبط جميع الإعدادات.</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="652"/>
         <source>Ariel Settings</source>
-        <translation>Ariel 설정</translation>
+        <translation>إعدادات Ariel</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="652"/>
         <source>Save and Close</source>
-        <translation>저장하고 닫기</translation>
+        <translation>حفظ وإغلاق</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="652"/>
         <source>Cancel</source>
-        <translation>취소</translation>
+        <translation>إلغاء</translation>
     </message>
 </context>
 <context>
@@ -210,17 +210,17 @@
     <message>
         <location filename="../../src/gui/setup_window.py" line="569"/>
         <source>Program</source>
-        <translation>프로그램</translation>
+        <translation>البرنامج</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="570"/>
         <source>Translation</source>
-        <translation>번역</translation>
+        <translation>الترجمة</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="571"/>
         <source>Overlay Style</source>
-        <translation>오버레이 스타일</translation>
+        <translation>نمط التراكب</translation>
     </message>
 </context>
 <context>
@@ -228,22 +228,22 @@
     <message>
         <location filename="../../src/gui/setup_window.py" line="721"/>
         <source>This is a preview.</source>
-        <translation>이것은 미리보기입니다.</translation>
+        <translation>هذه معاينة.</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="722"/>
         <source>The style will be applied.</source>
-        <translation>스타일이 적용됩니다.</translation>
+        <translation>سيتم تطبيق النمط.</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="723"/>
         <source>A wonderful experience!</source>
-        <translation>멋진 경험입니다!</translation>
+        <translation>تجربة رائعة!</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="726"/>
         <source>Original sample text</source>
-        <translation>원본 샘플 텍스트</translation>
+        <translation>نص العينة الأصلي</translation>
     </message>
 </context>
 <context>
@@ -251,72 +251,72 @@
     <message>
         <location filename="../../src/gui/setup_window.py" line="468"/>
         <source>Overlay Style Settings</source>
-        <translation>오버레이 스타일 설정</translation>
+        <translation>إعدادات نمط التراكب</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="469"/>
         <source>Customize the appearance of translation overlays.</source>
-        <translation>번역 오버레이의 모양을 사용자 정의합니다.</translation>
+        <translation>تخصيص مظهر تراكبات الترجمة.</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="470"/>
         <source>Voice (STT) Overlay</source>
-        <translation>음성 (STT) 오버레이</translation>
+        <translation>تراكب الصوت (STT)</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="471"/>
         <source>Screen (OCR) Overlay</source>
-        <translation>화면 (OCR) 오버레이</translation>
+        <translation>تراكب الشاشة (OCR)</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="475"/>
         <source>Font Family:</source>
-        <translation>글꼴:</translation>
+        <translation>عائلة الخط:</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="476"/>
         <source>Translated Font Size:</source>
-        <translation>번역 글자 크기:</translation>
+        <translation>حجم الخط المترجم:</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="477"/>
         <source>Translated Font Color:</source>
-        <translation>번역 글자 색:</translation>
+        <translation>لون الخط المترجم:</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="478"/>
         <source>Background Color:</source>
-        <translation>배경색:</translation>
+        <translation>لون الخلفية:</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="483"/>
         <source>Preview</source>
-        <translation>미리보기</translation>
+        <translation>معاينة</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="487"/>
         <source>Max Messages:</source>
-        <translation>최대 메시지 수:</translation>
+        <translation>الحد الأقصى للرسائل:</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="488"/>
         <source>Show Original Text:</source>
-        <translation>원본 텍스트 표시:</translation>
+        <translation>عرض النص الأصلي:</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="489"/>
         <source>Original Text Size (Offset):</source>
-        <translation>원본 텍스트 크기 (오프셋):</translation>
+        <translation>حجم النص الأصلي (إزاحة):</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="490"/>
         <source>Original Text Color:</source>
-        <translation>원본 텍스트 색:</translation>
+        <translation>لون النص الأصلي:</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="536"/>
         <source>Preview is not available for Patch Mode</source>
-        <translation>패치 모드에서는 미리보기를 사용할 수 없습니다</translation>
+        <translation>المعاينة غير متاحة في وضع الباتش</translation>
     </message>
 </context>
 <context>
@@ -329,37 +329,37 @@
     <message>
         <location filename="../../src/gui/tray_icon.py" line="96"/>
         <source>Start Voice Translation</source>
-        <translation>음성 번역 시작</translation>
+        <translation>بدء الترجمة الصوتية</translation>
     </message>
     <message>
         <location filename="../../src/gui/tray_icon.py" line="97"/>
         <source>Start Screen Translation</source>
-        <translation>화면 번역 시작</translation>
+        <translation>بدء ترجمة الشاشة</translation>
     </message>
     <message>
         <location filename="../../src/gui/tray_icon.py" line="98"/>
         <source>Settings...</source>
-        <translation>설정...</translation>
+        <translation>الإعدادات...</translation>
     </message>
     <message>
         <location filename="../../src/gui/tray_icon.py" line="99"/>
         <source>Quit</source>
-        <translation>종료</translation>
+        <translation>خروج</translation>
     </message>
     <message>
         <location filename="../../src/gui/tray_icon.py" line="192"/>
         <source>Stop Voice Translation</source>
-        <translation>음성 번역 중지</translation>
+        <translation>إيقاف الترجمة الصوتية</translation>
     </message>
     <message>
         <location filename="../../src/gui/tray_icon.py" line="232"/>
         <source>Stop Screen Translation</source>
-        <translation>화면 번역 중지</translation>
+        <translation>إيقاف ترجمة الشاشة</translation>
     </message>
     <message>
         <location filename="../../src/gui/tray_icon.py" line="306"/>
         <source>Error</source>
-        <translation>오류</translation>
+        <translation>خطأ</translation>
     </message>
 </context>
 <context>
@@ -367,12 +367,12 @@
     <message>
         <location filename="../../src/gui/overlay_window.py" line="88"/>
         <source>Copy Original</source>
-        <translation>원본 복사</translation>
+        <translation>نسخ النص الأصلي</translation>
     </message>
     <message>
         <location filename="../../src/gui/overlay_window.py" line="92"/>
         <source>Copy Translated</source>
-        <translation>번역본 복사</translation>
+        <translation>نسخ النص المترجم</translation>
     </message>
 </context>
 <context>
@@ -380,137 +380,137 @@
     <message>
         <location filename="../../src/gui/setup_window.py" line="236"/>
         <source>Standard Overlay</source>
-        <translation>표준 오버레이</translation>
+        <translation>تراكب قياسي</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="236"/>
         <source>Patch Mode</source>
-        <translation>패치 모드</translation>
+        <translation>وضع الباتش</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="243"/>
         <source>Auto Detect</source>
-        <translation>자동 감지</translation>
+        <translation>كشف تلقائي</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="243"/>
         <source>English</source>
-        <translation>영어</translation>
+        <translation>الإنجليزية</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="243"/>
         <source>Korean</source>
-        <translation>한국어</translation>
+        <translation>الكورية</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="243"/>
         <source>Japanese</source>
-        <translation>일본어</translation>
+        <translation>اليابانية</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="243"/>
         <source>Arabic</source>
-        <translation>아랍어</translation>
+        <translation>العربية</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="243"/>
         <source>Czech</source>
-        <translation>체코어</translation>
+        <translation>التشيكية</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="243"/>
         <source>German</source>
-        <translation>독일어</translation>
+        <translation>الألمانية</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="243"/>
         <source>Greek</source>
-        <translation>그리스어</translation>
+        <translation>اليونانية</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="243"/>
         <source>Spanish</source>
-        <translation>스페인어</translation>
+        <translation>الإسبانية</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="243"/>
         <source>French</source>
-        <translation>프랑스어</translation>
+        <translation>الفرنسية</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="243"/>
         <source>Hebrew</source>
-        <translation>히브리어</translation>
+        <translation>العبرية</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="243"/>
         <source>Indonesian</source>
-        <translation>인도네시아어</translation>
+        <translation>الإندونيسية</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="243"/>
         <source>Italian</source>
-        <translation>이탈리아어</translation>
+        <translation>الإيطالية</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="243"/>
         <source>Portuguese</source>
-        <translation>포르투갈어</translation>
+        <translation>البرتغالية</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="243"/>
         <source>Russian</source>
-        <translation>러시아어</translation>
+        <translation>الروسية</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="243"/>
         <source>Turkish</source>
-        <translation>터키어</translation>
+        <translation>التركية</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="243"/>
         <source>Ukrainian</source>
-        <translation>우크라이나어</translation>
+        <translation>الأوكرانية</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="244"/>
         <source>System Language</source>
-        <translation>시스템 언어</translation>
+        <translation>لغة النظام</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="250"/>
         <source>Translation Settings</source>
-        <translation>번역 설정</translation>
+        <translation>إعدادات الترجمة</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="251"/>
         <source>Configure language and mode for each translation feature.</source>
-        <translation>각 번역 기능의 언어와 모드를 설정합니다.</translation>
+        <translation>تكوين اللغة والوضع لكل ميزة ترجمة.</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="253"/>
         <source>Voice Translation (STT)</source>
-        <translation>음성 번역 (STT)</translation>
+        <translation>الترجمة الصوتية (STT)</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="254"/>
         <source>Source:</source>
-        <translation>원본:</translation>
+        <translation>المصدر:</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="255"/>
         <source>Target:</source>
-        <translation>대상:</translation>
+        <translation>الهدف:</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="257"/>
         <source>Screen Translation (OCR)</source>
-        <translation>화면 번역 (OCR)</translation>
+        <translation>ترجمة الشاشة (OCR)</translation>
     </message>
     <message>
         <location filename="../../src/gui/setup_window.py" line="260"/>
         <source>Mode:</source>
-        <translation>모드:</translation>
+        <translation>الوضع:</translation>
     </message>
 </context>
 </TS>

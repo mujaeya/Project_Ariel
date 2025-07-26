@@ -1,4 +1,4 @@
-# ariel_client/src/gui/setup_window.py (최종 수정본)
+# ariel_client/src/gui/setup_window.py (수정 완료)
 
 import sys
 import logging
@@ -14,19 +14,9 @@ from ..utils import resource_path
 from ..config_manager import ConfigManager
 from .fluent_widgets import (NavigationItemWidget, SettingsPage, TitleLabel,
                              DescriptionLabel, SettingsCard)
+from ..constants import UI_LANGUAGES, DEEPL_LANGUAGES_SOURCE, DEEPL_LANGUAGES_TARGET
 
 logger = logging.getLogger(__name__)
-
-# --- 설정값 정의 ---
-UI_LANGUAGES = {
-    "Auto Detect": "auto", "English": "en", "Korean": "ko", "Japanese": "ja",
-    "Chinese (Simplified)": "zh", "German": "de", "French": "fr", "Spanish": "es",
-}
-DEEPL_LANGUAGES = {
-    "Auto Detect": "auto", "Korean": "KO", "English": "EN", "Japanese": "JA",
-    "Chinese": "ZH", "German": "DE", "French": "FR", "Spanish": "ES",
-}
-TARGET_LANGUAGES = {"System Language": "auto", **{k: v for k, v in DEEPL_LANGUAGES.items() if v != 'auto'}}
 
 
 def get_system_language():
@@ -56,18 +46,16 @@ class ColorPickerButton(QPushButton):
 
     @Slot()
     def on_click(self):
-        title = QCoreApplication.translate("ColorPickerButton", "Select Color")
+        title = self.tr("Select Color")
         
         dialog = QColorDialog(self)
         dialog.setWindowTitle(title)
         
-        # [핵심 수정] 코드 레벨에서 QPalette를 직접 설정하여 UI 일관성 확보
         setup_window = self.window()
         if setup_window and hasattr(setup_window, 'get_dialog_palette'):
             palette = setup_window.get_dialog_palette()
             dialog.setPalette(palette)
         
-        # 네이티브 대화상자 사용 금지 옵션은 여전히 중요
         dialog.setOption(QColorDialog.ColorDialogOption.DontUseNativeDialog, True)
         dialog.setOption(QColorDialog.ColorDialogOption.ShowAlphaChannel, True)
 
@@ -78,6 +66,9 @@ class ColorPickerButton(QPushButton):
             if color.isValid() and color != self._color:
                 self.set_color(color)
                 self.colorChanged.emit(color)
+    
+    def tr(self, text):
+        return QCoreApplication.translate("ColorPickerButton", text)
 
 class BaseSettingsPage(SettingsPage):
     def __init__(self, config_manager: ConfigManager):
@@ -86,7 +77,8 @@ class BaseSettingsPage(SettingsPage):
     def load_settings(self): pass
     def save_settings(self): pass
     def retranslate_ui(self): pass
-    def tr(self, context, text): return QCoreApplication.translate(context, text)
+    def tr(self, context, text):
+        return QCoreApplication.translate(context, text)
 
 class ProgramSettingsPage(BaseSettingsPage):
     language_changed = Signal(str)
@@ -121,7 +113,8 @@ class ProgramSettingsPage(BaseSettingsPage):
         # Theme Card
         self.theme_card = SettingsCard()
         self.theme_combo = QComboBox()
-        self.theme_combo.addItems(["Dark", "Light", "Custom"])
+        self.themes = ["Dark", "Light", "Custom"]
+        self.theme_combo.addItems([self.tr("ProgramSettingsPage", theme) for theme in self.themes])
         self.theme_card.add_widget(self.theme_combo)
         self.add_widget(self.theme_card)
         
@@ -154,11 +147,12 @@ class ProgramSettingsPage(BaseSettingsPage):
         self.add_widget(self.hotkey_card)
         
         self.lang_combo.currentIndexChanged.connect(lambda: self.language_changed.emit(self.lang_combo.currentData()))
-        self.theme_combo.currentTextChanged.connect(self.on_theme_changed)
+        self.theme_combo.currentIndexChanged.connect(self.on_theme_changed)
         self.volume_slider.valueChanged.connect(lambda v: self.volume_label.setText(f"{v}%"))
 
-    def on_theme_changed(self, text: str):
-        self.custom_colors_card.setVisible(text.lower() == "custom")
+    def on_theme_changed(self, index: int):
+        theme_key = self.themes[index]
+        self.custom_colors_card.setVisible(theme_key.lower() == "custom")
         if not self.theme_combo.signalsBlocked(): self.theme_changed.emit()
 
     def retranslate_ui(self):
@@ -170,11 +164,17 @@ class ProgramSettingsPage(BaseSettingsPage):
         self.hotkey_card.title_label.setText(self.tr("ProgramSettingsPage", "Global Hotkeys"))
         for label, name_key, _ in self.color_pickers.values(): label.setText(f"{self.tr('ProgramSettingsPage', name_key)}:")
         for action, (label, desc_key) in self.hotkey_labels.items(): label.setText(f"{self.tr('ProgramSettingsPage', desc_key)}:")
+        self.theme_combo.blockSignals(True)
+        for i, theme_key in enumerate(self.themes): self.theme_combo.setItemText(i, self.tr("ProgramSettingsPage", theme_key))
+        self.theme_combo.blockSignals(False)
 
     def load_settings(self):
         self.lang_combo.blockSignals(True); lang_code = self.config_manager.get("app_language", "auto"); index = self.lang_combo.findData(lang_code); self.lang_combo.setCurrentIndex(index if index != -1 else 0); self.lang_combo.blockSignals(False)
         self.deepl_key_edit.setText(self.config_manager.get("deepl_api_key", "")); self.theme_combo.blockSignals(True)
-        theme = self.config_manager.get("app_theme", "dark"); self.theme_combo.setCurrentText(theme.capitalize()); self.custom_colors_card.setVisible(theme == "custom"); self.theme_combo.blockSignals(False)
+        theme = self.config_manager.get("app_theme", "dark");
+        try: theme_index = self.themes.index(theme.capitalize())
+        except ValueError: theme_index = 0 # Dark
+        self.theme_combo.setCurrentIndex(theme_index); self.custom_colors_card.setVisible(theme == "custom"); self.theme_combo.blockSignals(False)
         volume = self.config_manager.get("notification_volume", 80); self.volume_slider.setValue(volume); self.volume_label.setText(f"{volume}%")
         custom_colors = self.config_manager.get("custom_theme_colors", {}); default_colors = self.config_manager.get_default_config()["custom_theme_colors"]
         for key, (_, _, picker) in self.color_pickers.items(): picker.set_color(QColor(custom_colors.get(key, default_colors.get(key))))
@@ -182,8 +182,9 @@ class ProgramSettingsPage(BaseSettingsPage):
 
     def save_settings(self):
         self.config_manager.set("app_language", self.lang_combo.currentData()); self.config_manager.set("deepl_api_key", self.deepl_key_edit.text())
-        self.config_manager.set("app_theme", self.theme_combo.currentText().lower()); self.config_manager.set("notification_volume", self.volume_slider.value())
-        custom_colors = {key: picker.color().name(QColor.NameFormat.HexArgb) for key, (_, _, picker) in self.color_pickers.items()}; self.config_manager.set("custom_theme_colors", custom_colors)
+        theme_key = self.themes[self.theme_combo.currentIndex()].lower()
+        self.config_manager.set("app_theme", theme_key); self.config_manager.set("notification_volume", self.volume_slider.value())
+        custom_colors = {key: picker.color().name(QColor.NameFormat.HexArgb) for key, (_, _, picker) in self.color_pickers.items()}; self.config_manager.set("custom_colors", custom_colors)
         for action, widget in self.hotkey_widgets.items(): self.config_manager.set(action, widget.keySequence().toString(QKeySequence.PortableText))
 
 class TranslationSettingsPage(BaseSettingsPage):
@@ -198,8 +199,6 @@ class TranslationSettingsPage(BaseSettingsPage):
 
         # === STT 설정 카드 ===
         self.stt_card = SettingsCard()
-        
-        # STT 언어 설정
         stt_lang_layout = QHBoxLayout()
         self.stt_source_label = QLabel()
         stt_lang_layout.addWidget(self.stt_source_label)
@@ -231,19 +230,20 @@ class TranslationSettingsPage(BaseSettingsPage):
         self.ocr_mode_label = QLabel()
         ocr_mode_layout.addWidget(self.ocr_mode_label)
         self.ocr_mode_combo = QComboBox()
-        self.ocr_mode_combo.addItems(["Standard Overlay", "Patch Mode"])
+        self.ocr_modes = ["Standard Overlay", "Patch Mode"]
+        self.ocr_mode_combo.addItems([self.tr("TranslationSettingsPage", mode) for mode in self.ocr_modes])
         ocr_mode_layout.addWidget(self.ocr_mode_combo)
         ocr_mode_layout.addStretch()
         self.ocr_card.add_layout(ocr_mode_layout)
         self.add_widget(self.ocr_card)
         
-        self.ocr_mode_combo.currentTextChanged.connect(self.ocr_mode_changed.emit)
+        self.ocr_mode_combo.currentTextChanged.connect(lambda: self.ocr_mode_changed.emit(self.ocr_modes[self.ocr_mode_combo.currentIndex()]))
 
     def create_lang_combo(self, is_source: bool):
         combo = QComboBox()
-        lang_dict = DEEPL_LANGUAGES if is_source else TARGET_LANGUAGES
+        lang_dict = DEEPL_LANGUAGES_SOURCE if is_source else DEEPL_LANGUAGES_TARGET
         for name, code in lang_dict.items():
-            combo.addItem(name, code)
+            combo.addItem(self.tr("TranslationSettingsPage", name), code)
         return combo
 
     def retranslate_ui(self):
@@ -259,13 +259,37 @@ class TranslationSettingsPage(BaseSettingsPage):
         self.ocr_target_label.setText(self.tr("TranslationSettingsPage", "Target:"))
         self.ocr_mode_label.setText(self.tr("TranslationSettingsPage", "Mode:"))
 
-    def load_settings(self):
-        self.stt_source_combo.setCurrentText(next((n for n, c in DEEPL_LANGUAGES.items() if c == self.config_manager.get("stt_source_language", "auto")), "Auto Detect"))
-        self.stt_target_combo.setCurrentText(next((n for n, c in TARGET_LANGUAGES.items() if c == self.config_manager.get("stt_target_language", "auto")), "System Language"))
+        for combo, lang_dict in [(self.stt_source_combo, DEEPL_LANGUAGES_SOURCE), (self.stt_target_combo, DEEPL_LANGUAGES_TARGET), (self.ocr_source_combo, DEEPL_LANGUAGES_SOURCE), (self.ocr_target_combo, DEEPL_LANGUAGES_TARGET)]:
+            combo.blockSignals(True)
+            for i, name in enumerate(lang_dict.keys()):
+                combo.setItemText(i, self.tr("TranslationSettingsPage", name))
+            combo.blockSignals(False)
         
-        self.ocr_source_combo.setCurrentText(next((n for n, c in DEEPL_LANGUAGES.items() if c == self.config_manager.get("ocr_source_language", "auto")), "Auto Detect"))
-        self.ocr_target_combo.setCurrentText(next((n for n, c in TARGET_LANGUAGES.items() if c == self.config_manager.get("ocr_target_language", "auto")), "System Language"))
-        self.ocr_mode_combo.setCurrentText(self.config_manager.get("ocr_mode", "Standard Overlay"))
+        self.ocr_mode_combo.blockSignals(True)
+        for i, mode_key in enumerate(self.ocr_modes):
+            self.ocr_mode_combo.setItemText(i, self.tr("TranslationSettingsPage", mode_key))
+        self.ocr_mode_combo.blockSignals(False)
+
+
+    def load_settings(self):
+        stt_source_code = self.config_manager.get("stt_source_language", "auto")
+        stt_source_name = next((n for n, c in DEEPL_LANGUAGES_SOURCE.items() if c == stt_source_code), "Auto Detect")
+        self.stt_source_combo.setCurrentText(self.tr("TranslationSettingsPage", stt_source_name))
+
+        stt_target_code = self.config_manager.get("stt_target_language", "auto")
+        stt_target_name = next((n for n, c in DEEPL_LANGUAGES_TARGET.items() if c == stt_target_code), "System Language")
+        self.stt_target_combo.setCurrentText(self.tr("TranslationSettingsPage", stt_target_name))
+        
+        ocr_source_code = self.config_manager.get("ocr_source_language", "auto")
+        ocr_source_name = next((n for n, c in DEEPL_LANGUAGES_SOURCE.items() if c == ocr_source_code), "Auto Detect")
+        self.ocr_source_combo.setCurrentText(self.tr("TranslationSettingsPage", ocr_source_name))
+
+        ocr_target_code = self.config_manager.get("ocr_target_language", "auto")
+        ocr_target_name = next((n for n, c in DEEPL_LANGUAGES_TARGET.items() if c == ocr_target_code), "System Language")
+        self.ocr_target_combo.setCurrentText(self.tr("TranslationSettingsPage", ocr_target_name))
+        
+        ocr_mode_key = self.config_manager.get("ocr_mode", "Standard Overlay")
+        self.ocr_mode_combo.setCurrentText(self.tr("TranslationSettingsPage", ocr_mode_key))
 
     def save_settings(self):
         self.config_manager.set("stt_source_language", self.stt_source_combo.currentData())
@@ -273,7 +297,8 @@ class TranslationSettingsPage(BaseSettingsPage):
         
         self.config_manager.set("ocr_source_language", self.ocr_source_combo.currentData())
         self.config_manager.set("ocr_target_language", self.ocr_target_combo.currentData())
-        self.config_manager.set("ocr_mode", self.ocr_mode_combo.currentText())
+        ocr_mode_key = self.ocr_modes[self.ocr_mode_combo.currentIndex()]
+        self.config_manager.set("ocr_mode", ocr_mode_key)
 
 class StyleSettingsPage(BaseSettingsPage):
     def __init__(self, config_manager: ConfigManager):
@@ -334,9 +359,6 @@ class StyleSettingsPage(BaseSettingsPage):
             
         style_dict = self.get_current_style(overlay_type)
         
-        if overlay_type == 'stt':
-            style_dict['show_original_text'] = self.style_widgets['stt']['show_original_check'].isChecked()
-
         dialog = StandardOverlayPreviewDialog(style_dict, self)
         dialog.finished.connect(lambda: self.preview_dialogs.pop(overlay_type, None))
         self.preview_dialogs[overlay_type] = dialog
@@ -399,11 +421,12 @@ class StyleSettingsPage(BaseSettingsPage):
             widgets['color_label'].setText(self.tr("StyleSettingsPage", "Translated Font Color:"))
             widgets['bg_label'].setText(self.tr("StyleSettingsPage", "Background Color:"))
             
+            # [수정] STT와 OCR 버튼 로직 분리
             preview_btn = widgets.get('preview_button')
-            if preview_btn and preview_btn.isEnabled():
+            if overlay_type == 'stt' and preview_btn:
                 preview_btn.setText(self.tr("StyleSettingsPage", "Preview"))
-            elif preview_btn:
-                preview_btn.setText(self.tr("StyleSettingsPage", "Preview is not available for Patch Mode"))
+            elif overlay_type == 'ocr' and preview_btn:
+                self.set_ocr_style_enabled(self.config_manager.get("ocr_mode", "Standard Overlay"))
 
         stt_widgets = self.style_widgets['stt']
         stt_widgets['max_messages_label'].setText(self.tr("StyleSettingsPage", "Max Messages:"))
@@ -456,6 +479,9 @@ class StyleSettingsPage(BaseSettingsPage):
     @Slot(str)
     def set_ocr_style_enabled(self, ocr_mode: str):
         enabled = ocr_mode == "Standard Overlay"
+        
+        # [수정] 루프 제거 - 이제 다른 위젯은 건드리지 않음
+        
         preview_btn = self.style_widgets['ocr'].get('preview_button')
         if preview_btn:
             preview_btn.setEnabled(enabled)
@@ -481,7 +507,9 @@ class SetupWindow(QWidget):
 
     def _add_pages(self):
         self.program_page = ProgramSettingsPage(self.config_manager); self.translation_page = TranslationSettingsPage(self.config_manager); self.style_page = StyleSettingsPage(self.config_manager)
-        self.add_page(self.program_page, "Program", "assets/icons/settings.svg"); self.add_page(self.translation_page, "Translation", "assets/icons/language.svg"); self.add_page(self.style_page, "Overlay Style", "assets/icons/style.svg")
+        self.add_page(self.program_page, "Program", "assets/icons/settings.svg")
+        self.add_page(self.translation_page, "Translation", "assets/icons/language.svg")
+        self.add_page(self.style_page, "Overlay Style", "assets/icons/style.svg")
 
     def add_page(self, page_widget, title_key, icon_path):
         self.pages.append(page_widget); self.pages_stack.addWidget(page_widget); item=QListWidgetItem(); item_widget=NavigationItemWidget(resource_path(icon_path), title_key)
@@ -494,69 +522,35 @@ class SetupWindow(QWidget):
             item = self.navigation_bar.item(row); widget = self.navigation_bar.itemWidget(item); is_selected = row == self.navigation_bar.currentRow(); item.setSelected(is_selected)
             if isinstance(widget, NavigationItemWidget): widget.set_active(is_selected, active_text_color if is_selected else inactive_text_color, active_icon_color if is_selected else inactive_icon_color)
 
-    # [핵심 추가] 테마에 맞는 QPalette를 생성하는 헬퍼 메서드
     def get_dialog_palette(self) -> QPalette:
         palette = QPalette()
         theme = self.config_manager.get("app_theme", "dark")
         
         colors = {}
         if theme == 'light':
-            colors = {
-                'window': QColor('#f2f3f5'), 'window_text': QColor('#2e3338'),
-                'base': QColor('#ffffff'), 'text': QColor('#2e3338'),
-                'button': QColor('#e3e5e8'), 'button_text': QColor('#2e3338'),
-                'highlight': QColor('#0056b3'), 'highlighted_text': QColor('#ffffff'),
-                'disabled_text': QColor('#9a9c9e'),
-            }
+            colors = { 'window': QColor('#f2f3f5'), 'window_text': QColor('#2e3338'), 'base': QColor('#ffffff'), 'text': QColor('#2e3338'), 'button': QColor('#e3e5e8'), 'button_text': QColor('#2e3338'), 'highlight': QColor('#0056b3'), 'highlighted_text': QColor('#ffffff'), 'disabled_text': QColor('#9a9c9e'), }
         elif theme == 'custom':
-            custom = self.config_manager.get("custom_theme_colors", {})
-            defaults = self.config_manager.get_default_config()["custom_theme_colors"]
-            colors = {
-                'window': QColor(custom.get('BACKGROUND_SECONDARY', defaults['BACKGROUND_SECONDARY'])),
-                'window_text': QColor(custom.get('TEXT_PRIMARY', defaults['TEXT_PRIMARY'])),
-                'base': QColor(custom.get('BACKGROUND_PRIMARY', defaults['BACKGROUND_PRIMARY'])),
-                'text': QColor(custom.get('TEXT_PRIMARY', defaults['TEXT_PRIMARY'])),
-                'button': QColor(custom.get('INTERACTIVE_NORMAL', defaults['INTERACTIVE_NORMAL'])),
-                'button_text': QColor(custom.get('TEXT_PRIMARY', defaults['TEXT_PRIMARY'])),
-                'highlight': QColor(custom.get('INTERACTIVE_ACCENT', defaults['INTERACTIVE_ACCENT'])),
-                'highlighted_text': QColor('#ffffff'),
-                'disabled_text': QColor(custom.get('TEXT_MUTED', defaults['TEXT_MUTED'])),
-            }
+            custom = self.config_manager.get("custom_colors", {}); defaults = self.config_manager.get_default_config()["custom_colors"]
+            colors = { 'window': QColor(custom.get('BACKGROUND_SECONDARY', defaults['BACKGROUND_SECONDARY'])), 'window_text': QColor(custom.get('TEXT_PRIMARY', defaults['TEXT_PRIMARY'])), 'base': QColor(custom.get('BACKGROUND_PRIMARY', defaults['BACKGROUND_PRIMARY'])), 'text': QColor(custom.get('TEXT_PRIMARY', defaults['TEXT_PRIMARY'])), 'button': QColor(custom.get('INTERACTIVE_NORMAL', defaults['INTERACTIVE_NORMAL'])), 'button_text': QColor(custom.get('TEXT_PRIMARY', defaults['TEXT_PRIMARY'])), 'highlight': QColor(custom.get('INTERACTIVE_ACCENT', defaults['INTERACTIVE_ACCENT'])), 'highlighted_text': QColor('#ffffff'), 'disabled_text': QColor(custom.get('TEXT_MUTED', defaults['TEXT_MUTED'])), }
         else: # Dark theme is the default
-            colors = {
-                'window': QColor('#36393f'), 'window_text': QColor('#dcddde'),
-                'base': QColor('#2f3136'), 'text': QColor('#dcddde'),
-                'button': QColor('#4f545c'), 'button_text': QColor('#ffffff'),
-                'highlight': QColor('#5865f2'), 'highlighted_text': QColor('#ffffff'),
-                'disabled_text': QColor('#72767d'),
-            }
+            colors = { 'window': QColor('#36393f'), 'window_text': QColor('#dcddde'), 'base': QColor('#2f3136'), 'text': QColor('#dcddde'), 'button': QColor('#4f545c'), 'button_text': QColor('#ffffff'), 'highlight': QColor('#5865f2'), 'highlighted_text': QColor('#ffffff'), 'disabled_text': QColor('#72767d'), }
 
-        palette.setColor(QPalette.ColorRole.Window, colors['window'])
-        palette.setColor(QPalette.ColorRole.WindowText, colors['window_text'])
-        palette.setColor(QPalette.ColorRole.Base, colors['base'])
-        palette.setColor(QPalette.ColorRole.AlternateBase, colors['base'])
-        palette.setColor(QPalette.ColorRole.ToolTipBase, colors['window'])
-        palette.setColor(QPalette.ColorRole.ToolTipText, colors['window_text'])
-        palette.setColor(QPalette.ColorRole.Text, colors['text'])
-        palette.setColor(QPalette.ColorRole.Button, colors['button'])
-        palette.setColor(QPalette.ColorRole.ButtonText, colors['button_text'])
-        palette.setColor(QPalette.ColorRole.BrightText, QColor(Qt.GlobalColor.red))
-        palette.setColor(QPalette.ColorRole.Highlight, colors['highlight'])
-        palette.setColor(QPalette.ColorRole.HighlightedText, colors['highlighted_text'])
-        
-        palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text, colors['disabled_text'])
-        palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, colors['disabled_text'])
-        return palette
+        palette.setColor(QPalette.ColorRole.Window, colors['window']); palette.setColor(QPalette.ColorRole.WindowText, colors['window_text']); palette.setColor(QPalette.ColorRole.Base, colors['base']); palette.setColor(QPalette.ColorRole.AlternateBase, colors['base']); palette.setColor(QPalette.ColorRole.ToolTipBase, colors['window']); palette.setColor(QPalette.ColorRole.ToolTipText, colors['window_text']); palette.setColor(QPalette.ColorRole.Text, colors['text']); palette.setColor(QPalette.ColorRole.Button, colors['button']); palette.setColor(QPalette.ColorRole.ButtonText, colors['button_text']); palette.setColor(QPalette.ColorRole.BrightText, QColor(Qt.GlobalColor.red)); palette.setColor(QPalette.ColorRole.Highlight, colors['highlight']); palette.setColor(QPalette.ColorRole.HighlightedText, colors['highlighted_text']); palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text, colors['disabled_text']); palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, colors['disabled_text']); return palette
 
     def save_and_close(self):
         current_lang = self.config_manager.get("app_language", "auto"); [p.save_settings() for p in self.pages]; self.config_manager.save(); new_lang = self.config_manager.get("app_language")
-        if current_lang != new_lang and current_lang != 'auto': QMessageBox.information(self, self.tr("SetupWindow", "Restart required"), self.tr("SetupWindow", "UI language change requires a program restart to take full effect."))
+        if current_lang != new_lang and current_lang != 'auto':
+            QMessageBox.information(self, self.tr("SetupWindow", "Restart required"), self.tr("SetupWindow", "UI language change requires a program restart to take full effect."))
         if self.config_manager.get("is_first_run"): self.config_manager.set("is_first_run", False); self.config_manager.save()
         self.close()
 
     def reset_settings(self):
-        reply = QMessageBox.question(self, self.tr("SetupWindow", "Reset Settings"), self.tr("SetupWindow", "Are you sure you want to reset all settings to their default values?"), QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
-        if reply == QMessageBox.StandardButton.Yes: self.config_manager.reset_to_defaults(); self.load_settings(); self.apply_stylesheet(); QMessageBox.information(self, self.tr("SetupWindow", "Complete"), self.tr("SetupWindow", "All settings have been reset."))
+        title = self.tr("SetupWindow", "Reset Settings")
+        text = self.tr("SetupWindow", "Are you sure you want to reset all settings to their default values?")
+        reply = QMessageBox.question(self, title, text, QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes:
+            self.config_manager.reset_to_defaults(); self.load_settings(); self.apply_stylesheet()
+            QMessageBox.information(self, self.tr("SetupWindow", "Complete"), self.tr("SetupWindow", "All settings have been reset."))
 
     def load_settings(self):
         for page in self.pages: page.load_settings()
@@ -571,7 +565,7 @@ class SetupWindow(QWidget):
             qss_path = resource_path(f'assets/styles/{base_qss_name}')
             with open(qss_path, 'r', encoding='utf-8') as f: qss = f.read()
             if theme == "custom":
-                custom_colors = self.config_manager.get("custom_theme_colors", {}); 
+                custom_colors = self.config_manager.get("custom_colors", {}); 
                 for key, color_val in custom_colors.items(): qss = qss.replace(f"%{key}%", str(color_val))
             if (app := QApplication.instance()): app.setStyleSheet(qss.replace("%ASSET_PATH%", resource_path("assets").replace("\\", "/")))
             self.update_navigation_style() 
@@ -612,11 +606,6 @@ class StandardOverlayPreviewDialog(QDialog):
         self.font = QFont(self.style.get("font_family", "Arial"), self.style.get("font_size", 18))
         self.show_original = self.style.get("show_original_text", False)
 
-        self.test_sentences = [
-            ("This is a preview.", "이것은 미리보기입니다."),
-            ("The style will be applied.", "스타일이 적용됩니다."),
-            ("A wonderful experience!", "놀라운 경험!"),
-        ]
         self.current_sentence_index = 0
         
         self.label = QLabel(self)
@@ -635,6 +624,9 @@ class StandardOverlayPreviewDialog(QDialog):
         self.timer.timeout.connect(self.update_text)
         
         self.update_text()
+    
+    def tr(self, text):
+        return QCoreApplication.translate("StandardOverlayPreviewDialog", text)
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -661,38 +653,44 @@ class StandardOverlayPreviewDialog(QDialog):
         self.animation.start()
 
     def _change_text_and_fade_in(self):
-        try:
-            self.animation.finished.disconnect(self._change_text_and_fade_in)
-        except RuntimeError:
-            pass
+        try: self.animation.finished.disconnect(self._change_text_and_fade_in)
+        except RuntimeError: pass
         
-        original, translated = self.test_sentences[self.current_sentence_index]
+        preview_texts = [
+            self.tr("This is a preview."),
+            self.tr("The style will be applied."),
+            self.tr("A wonderful experience!"),
+        ]
+        
+        original_text = self.tr("Original sample text")
+        translated_text = preview_texts[self.current_sentence_index]
         
         if self.show_original:
             offset = self.style.get("original_text_font_size_offset", -4)
             orig_color_name = QColor(self.style.get("original_text_font_color", "#BBBBBB")).name()
             display_text = (
-                f'<span style="font-size:{self.font.pointSize() + offset}pt; color:{orig_color_name};">{original}</span><br/>'
-                f'{translated}'
+                f'<span style="font-size:{self.font.pointSize() + offset}pt; color:{orig_color_name};">{original_text}</span><br/>'
+                f'{translated_text}'
             )
         else:
-            display_text = translated
+            display_text = translated_text
         
         self.label.setText(display_text)
         
-        fm = QFontMetrics(self.font)
         doc = self.label.document()
         doc.setHtml(display_text)
         doc.setTextWidth(400)
         self.setFixedSize(int(doc.idealWidth()) + 40, int(doc.size().height()) + 20)
         
-        self.current_sentence_index = (self.current_sentence_index + 1) % len(self.test_sentences)
+        self.current_sentence_index = (self.current_sentence_index + 1) % len(preview_texts)
         self.animation.setStartValue(0.0)
         self.animation.setEndValue(1.0)
         self.animation.start()
 
 if __name__ == '__main__':
     from ..config_manager import ConfigManager
+    from ..constants import UI_LANGUAGES
+
     app = QApplication(sys.argv)
     config_manager = ConfigManager()
     

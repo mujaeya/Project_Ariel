@@ -1,16 +1,16 @@
-# ariel_client/src/gui/overlay_window.py (이 코드로 전체 교체)
+# ariel_client/src/gui/overlay_window.py (최종본)
+
 import logging
 from PySide6.QtWidgets import (QWidget, QLabel, QVBoxLayout, QApplication, QMenu,
                                QGraphicsOpacityEffect, QSizePolicy)
 from PySide6.QtCore import (Qt, QTimer, QPoint, QRect, Slot, QPropertyAnimation, 
-                              QEasingCurve, Property, QParallelAnimationGroup)
+                              QEasingCurve, Property, QParallelAnimationGroup, QCoreApplication)
 from PySide6.QtGui import QCursor, QGuiApplication, QAction, QColor
 
 from ..config_manager import ConfigManager
 
 logger = logging.getLogger(__name__)
 
-# OcrPatchWindow 클래스는 변경 없음 (기존 코드와 동일)
 class OcrPatchWindow(QWidget):
     def __init__(self, patch_info: dict, style_config: dict):
         super().__init__()
@@ -29,7 +29,6 @@ class OcrPatchWindow(QWidget):
 
 
 class TranslationItem(QWidget):
-    # (이 클래스는 기존 코드와 대부분 동일하지만, 애니메이션을 위해 opacity property를 가짐)
     def _get_opacity(self):
         if not self.graphicsEffect(): return 1.0
         return self.graphicsEffect().opacity()
@@ -48,7 +47,7 @@ class TranslationItem(QWidget):
         self.original_text = original_text
         self.translated_text = translated_text
         self.style_config = style_config
-        self.is_current_line = False # 기본값은 False
+        self.is_current_line = False
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 10, 12, 10)
@@ -67,13 +66,16 @@ class TranslationItem(QWidget):
         layout.addWidget(self.original_label)
         self.apply_styles()
 
+    def tr(self, text):
+        return QCoreApplication.translate("TranslationItem", text)
+
     def update_text(self, original_text: str, translated_text: str):
         self.original_text = original_text
         self.translated_text = translated_text
         self.translated_label.setText(translated_text)
         self.original_label.setText(original_text)
         self.original_label.setVisible(self.style_config.get("show_original_text", True) and bool(self.original_text))
-        self.adjustSize() # 텍스트 변경 후 크기 재조정
+        self.adjustSize()
 
     def apply_styles(self):
         font_family = self.style_config.get("font_family", "Malgun Gothic")
@@ -100,11 +102,18 @@ class TranslationItem(QWidget):
 
     def contextMenuEvent(self, event):
         menu = QMenu(self)
-        if self.original_text: menu.addAction("Copy Original").triggered.connect(lambda: QApplication.clipboard().setText(self.original_text))
-        if self.translated_text: menu.addAction("Copy Translated").triggered.connect(lambda: QApplication.clipboard().setText(self.translated_text))
-        if menu.actions(): menu.exec(event.globalPos())
+        if self.original_text: 
+            copy_original_action = QAction(self.tr("Copy Original"), self)
+            copy_original_action.triggered.connect(lambda: QApplication.clipboard().setText(self.original_text))
+            menu.addAction(copy_original_action)
+        if self.translated_text: 
+            copy_translated_action = QAction(self.tr("Copy Translated"), self)
+            copy_translated_action.triggered.connect(lambda: QApplication.clipboard().setText(self.translated_text))
+            menu.addAction(copy_translated_action)
 
-# ==================== [핵심] OverlayWindow 전면 재설계 ====================
+        if menu.actions(): 
+            menu.exec(event.globalPos())
+
 class OverlayWindow(QWidget):
     RESIZE_MARGIN = 10
     
@@ -120,10 +129,9 @@ class OverlayWindow(QWidget):
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
-        # [수정] 자식 위젯의 위치를 직접 제어하므로, 마우스 이벤트를 자식에게 전달하지 않음
         self.setMouseTracking(True) 
         
-        self.items = [] # QVBoxLayout 대신 리스트로 아이템 관리
+        self.items = []
         self.animation_group = QParallelAnimationGroup(self)
         
         self.status_label = QLabel(self)
@@ -141,27 +149,23 @@ class OverlayWindow(QWidget):
         font_family = self.style_config.get("font_family", "Malgun Gothic")
         self.status_label.setStyleSheet(f"background-color: transparent; color: #CCCCCC; font-size: 10pt; font-family: '{font_family}';")
         
-        # 모든 아이템에 새 스타일 적용
         for item in self.items:
             item.style_config = self.style_config
             item.apply_styles()
-            item.adjustSize() # 스타일 변경 후 크기 재조정
+            item.adjustSize()
 
-        self._update_layout() # 레이아웃 즉시 갱신
+        self._update_layout()
 
-    # [수정] update_current_line -> update_item으로 통합
     @Slot(str, str, bool)
     def update_item(self, original: str, translated: str, is_final: bool):
         self.status_label.hide()
 
         if not self.items or self.items[0].is_current_line is False:
-            # 새 아이템 추가
             new_item = TranslationItem(original, translated, self.style_config, self)
             new_item.is_current_line = not is_final
             self.items.insert(0, new_item)
             new_item.show()
         else:
-            # 기존 아이템 업데이트
             current_item = self.items[0]
             current_item.update_text(original, translated)
             current_item.is_current_line = not is_final
@@ -173,43 +177,35 @@ class OverlayWindow(QWidget):
         max_messages = self.style_config.get("max_messages", 3)
         if len(self.items) > max_messages:
             items_to_remove = self.items[max_messages:]
-            self.items = self.items[:max_messages] # 리스트에서 즉시 제거
+            self.items = self.items[:max_messages]
             for item in items_to_remove:
                 self.fade_out_and_die(item)
 
-    # [핵심] 수동 레이아웃 및 애니메이션 함수
     def _update_layout(self):
-        self.animation_group.clear() # 이전 애니메이션 중지
+        self.animation_group.clear()
         
         spacing = 8
-        current_y = self.height() - self.RESIZE_MARGIN # 아래쪽부터 시작
+        current_y = self.height() - self.RESIZE_MARGIN
         
         for i, item in enumerate(self.items):
-            item.adjustSize() # 최신 크기 반영
+            item.adjustSize()
             target_y = current_y - item.height()
             current_y = target_y - spacing
             
-            # 위치 애니메이션
             pos_anim = QPropertyAnimation(item, b"pos", self)
             pos_anim.setDuration(300)
             pos_anim.setEasingCurve(QEasingCurve.Type.OutQuad)
             pos_anim.setEndValue(QPoint(self.RESIZE_MARGIN, target_y))
             self.animation_group.addAnimation(pos_anim)
 
-            # 투명도 애니메이션 (인덱스에 따라)
             opacity_anim = QPropertyAnimation(item, b"opacity", self)
             opacity_anim.setDuration(300)
             opacity_anim.setEasingCurve(QEasingCurve.Type.OutQuad)
             
-            # [핵심] 위치에 따른 투명도 계산
-            if i == 0: # 최상단 (현재 입력중 또는 가장 최신)
-                target_opacity = 1.0
-            elif i == 1:
-                target_opacity = 0.8
-            elif i == 2:
-                target_opacity = 0.6
-            else: # 그 이상은 투명
-                target_opacity = 0.0
+            if i == 0: target_opacity = 1.0
+            elif i == 1: target_opacity = 0.8
+            elif i == 2: target_opacity = 0.6
+            else: target_opacity = 0.0
 
             opacity_anim.setEndValue(target_opacity)
             self.animation_group.addAnimation(opacity_anim)
@@ -252,7 +248,6 @@ class OverlayWindow(QWidget):
         self.setGeometry(int(pos_x), int(pos_y), width, height)
         
     def resizeEvent(self, event):
-        # 창 크기가 변경될 때마다 레이아웃을 다시 계산
         super().resizeEvent(event)
         self._update_layout()
 

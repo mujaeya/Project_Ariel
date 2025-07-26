@@ -1,8 +1,8 @@
-# ariel_client/src/gui/tray_icon.py (이 코드로 전체 교체)
+# ariel_client/src/gui/tray_icon.py (수정 완료)
 
 import logging
 import queue
-import time # [핵심 수정] time 모듈 임포트 추가
+import time
 
 from PySide6.QtWidgets import QSystemTrayIcon, QMenu, QMessageBox, QApplication
 from PySide6.QtGui import QIcon, QAction
@@ -32,11 +32,12 @@ class TrayIcon(QObject):
         self.app = app
         self.config_manager = config_manager
         self.audio_queue = queue.Queue()
-        self._last_error_time = 0 # [수정] _last_error_time 초기화
+        self._last_error_time = 0
 
         self.sound_player = SoundPlayer(self.config_manager, self)
         self.tray_icon = QSystemTrayIcon(icon, self)
-        self.tray_icon.setToolTip("Ariel by Seeth")
+        # [수정] ToolTip 국제화 처리
+        self.tray_icon.setToolTip(self.tr("TrayIcon", "Ariel by Seeth"))
 
         self.worker_thread = QThread()
         self.worker = TranslationWorker(self.config_manager)
@@ -63,7 +64,7 @@ class TrayIcon(QObject):
         
         self.tray_icon.show()
         self.worker_thread.start()
-        self.threads.append(self.worker_thread) # [추가] 메인 워커 스레드도 관리 목록에 포함
+        self.threads.append(self.worker_thread)
         
         self.hotkey_manager.start()
         self.sound_request_queued.emit("sound_app_start")
@@ -71,14 +72,10 @@ class TrayIcon(QObject):
         if self.config_manager.get("is_first_run"):
             QTimer.singleShot(100, self.open_setup_window)
 
-# ariel_client/src/gui/tray_icon.py
-
     def connect_base_signals(self):
         self.sound_request_queued.connect(self.sound_player.play)
         
-        # [핵심 수정] 새로운 시그널 이름으로 변경하고, 새로운 슬롯에 연결합니다.
         self.worker.stt_chunk_translated.connect(self.overlay_manager.add_stt_chunk)
-        
         self.worker.stt_status_updated.connect(self.overlay_manager.update_stt_status)
         self.worker.ocr_patches_ready.connect(self.overlay_manager.show_ocr_patches)
         self.worker.ocr_status_updated.connect(self.overlay_manager.update_ocr_status)
@@ -94,10 +91,11 @@ class TrayIcon(QObject):
 
     def create_menu(self):
         self.menu = QMenu()
-        self.voice_translation_action = QAction(self.tr("Start Voice Translation"), self, checkable=True)
-        self.ocr_translation_action = QAction(self.tr("Start Screen Translation"), self, checkable=True)
-        self.setup_action = QAction(self.tr("Settings..."), self)
-        self.quit_action = QAction(self.tr("Quit"), self)
+        # [수정] 컨텍스트를 명시하여 tr() 호출
+        self.voice_translation_action = QAction(self.tr("TrayIcon", "Start Voice Translation"), self, checkable=True)
+        self.ocr_translation_action = QAction(self.tr("TrayIcon", "Start Screen Translation"), self, checkable=True)
+        self.setup_action = QAction(self.tr("TrayIcon", "Settings..."), self)
+        self.quit_action = QAction(self.tr("TrayIcon", "Quit"), self)
 
         self.menu.addAction(self.voice_translation_action)
         self.menu.addAction(self.ocr_translation_action)
@@ -133,42 +131,33 @@ class TrayIcon(QObject):
 
     @Slot(bool)
     def toggle_voice_translation(self, checked: bool):
-        # [핵심 수정] TranslationWorker에 STT 활성화/비활성화 상태를 전달합니다.
         self.worker.set_stt_enabled(checked)
-
-        # UI가 즉시 비활성화되어 사용자의 중복 클릭을 방지합니다.
         self.voice_translation_action.setEnabled(False) 
         
         if checked:
-            # [핵심 수정] 시작하기 전에 언어 설정을 전달합니다.
             lang = self.config_manager.get("stt_source_language", "auto")
             self.worker.set_stt_language(lang)
             self.start_voice_translation()
         else:
             self.stop_voice_translation()
         
-        # 1초 후에 버튼을 다시 활성화합니다.
         QTimer.singleShot(1000, lambda: self.voice_translation_action.setEnabled(True))
-
-# ariel_client/src/gui/tray_icon.py
 
     def start_voice_translation(self):
         if self.capturer_thread or self.processor_thread:
-            logger.warning("오디오 스레드가 이미 실행 중입니다. 시작 요청을 무시합니다.")
+            logger.warning("Audio threads are already running. Ignoring start request.")
             if not self.voice_translation_action.isChecked():
                 self.voice_translation_action.setChecked(True)
             return
 
-        logger.info("음성 번역 서비스 시작 중 (실시간 처리 아키텍처)...")
+        logger.info("Starting voice translation service (real-time architecture)...")
         
         self.processor_thread = QThread()
         self.threads.append(self.processor_thread)
         self.audio_processor = AudioProcessor(self.config_manager, self.audio_queue)
         self.audio_processor.moveToThread(self.processor_thread)
 
-        # [핵심 수정] 새로운 시그널 이름으로 변경하고, 새로운 슬롯에 연결합니다.
         self.audio_processor.audio_chunk_ready.connect(self.worker.process_stt_chunk)
-        
         self.audio_processor.status_updated.connect(self.overlay_manager.update_stt_status)
         self.audio_processor.error_occurred.connect(self.on_worker_error)
         self.audio_processor.finished.connect(self.on_audio_threads_finished)
@@ -186,11 +175,12 @@ class TrayIcon(QObject):
         
         self.sound_request_queued.emit("sound_stt_start")
         self.overlay_manager.show_stt_overlay()
-        self.voice_translation_action.setText(self.tr("Stop Voice Translation"))
-        logger.info("음성 번역 서비스 시작 완료.")
+        # [수정] 동적 텍스트도 tr() 적용
+        self.voice_translation_action.setText(self.tr("TrayIcon", "Stop Voice Translation"))
+        logger.info("Voice translation service started.")
 
     def stop_voice_translation(self):
-        logger.info("음성 번역 서비스 중지 중...")
+        logger.info("Stopping voice translation service...")
         if self.audio_capturer:
             self.audio_capturer.stop_capturing()
         if self.audio_processor:
@@ -198,7 +188,7 @@ class TrayIcon(QObject):
 
     @Slot()
     def on_audio_threads_finished(self):
-        logger.debug("on_audio_threads_finished 슬롯 호출됨.")
+        logger.debug("on_audio_threads_finished slot called.")
         
         if self.audio_processor:
             self.audio_processor.deleteLater()
@@ -231,9 +221,10 @@ class TrayIcon(QObject):
         
         if self.voice_translation_action.isChecked():
             self.voice_translation_action.setChecked(False)
-        self.voice_translation_action.setText(self.tr("Start Voice Translation"))
+        # [수정] 동적 텍스트도 tr() 적용
+        self.voice_translation_action.setText(self.tr("TrayIcon", "Start Voice Translation"))
         
-        logger.info("음성 번역 서비스 관련 모든 리소스가 정리되었습니다.")
+        logger.info("All resources related to the voice translation service have been cleaned up.")
 
     @Slot(bool)
     def toggle_ocr_translation(self, checked: bool):
@@ -265,11 +256,11 @@ class TrayIcon(QObject):
 
     def _start_ocr_monitoring_after_stop(self, rect: QRect):
         if self.ocr_monitor_thread is not None:
-            logger.warning("화면 감시 스레드가 아직 정리 중입니다. 시작 요청을 무시합니다.")
+            logger.warning("Screen monitor thread is still cleaning up. Ignoring start request.")
             self.ocr_translation_action.setChecked(False)
             return
 
-        logger.info(f"화면 번역 서비스 시작 중... (영역: {rect})")
+        logger.info(f"Starting screen translation service... (Region: {rect})")
         self.ocr_monitor_thread = QThread()
         self.threads.append(self.ocr_monitor_thread)
         self.screen_monitor = ScreenMonitor(rect, self.overlay_manager.get_stt_overlay_geometry)
@@ -282,17 +273,18 @@ class TrayIcon(QObject):
 
         self.ocr_monitor_thread.start()
         self.sound_request_queued.emit("sound_ocr_start")
-        self.ocr_translation_action.setText(self.tr("Stop Screen Translation"))
-        logger.info("화면 번역 서비스 시작 완료.")
+        # [수정] 동적 텍스트도 tr() 적용
+        self.ocr_translation_action.setText(self.tr("TrayIcon", "Stop Screen Translation"))
+        logger.info("Screen translation service started.")
 
     def stop_ocr_monitoring(self, play_sound=True):
-        logger.info("화면 번역 서비스 중지 중...")
+        logger.info("Stopping screen translation service...")
         if self.screen_monitor:
             self.screen_monitor.stop()
 
     @Slot(bool)
     def on_ocr_thread_finished(self, play_sound=True):
-        logger.debug("on_ocr_thread_finished 슬롯 호출됨.")
+        logger.debug("on_ocr_thread_finished slot called.")
         if self.screen_monitor:
             self.screen_monitor.deleteLater()
             self.screen_monitor = None
@@ -308,16 +300,20 @@ class TrayIcon(QObject):
         if play_sound: self.sound_request_queued.emit("sound_ocr_stop")
         if self.ocr_translation_action.isChecked():
             self.ocr_translation_action.setChecked(False)
-        self.ocr_translation_action.setText(self.tr("Start Screen Translation"))
-        logger.info("화면 번역 서비스 관련 리소스 및 UI가 모두 정리되었습니다.")
+        # [수정] 동적 텍스트도 tr() 적용
+        self.ocr_translation_action.setText(self.tr("TrayIcon", "Start Screen Translation"))
+        logger.info("All resources and UI related to the screen translation service have been cleaned up.")
 
     @Slot(str)
     def on_worker_error(self, message: str):
         if time.time() - self._last_error_time < 5:
             return
         self._last_error_time = time.time()
-
-        QMessageBox.warning(None, self.tr("Error"), message)
+        
+        # [수정] QMessageBox 제목 국제화 처리
+        error_title = self.tr("TrayIcon", "Error")
+        QMessageBox.warning(None, error_title, message)
+        
         if "STT" in message or "Audio" in message or "VAD" in message: 
             if self.voice_translation_action.isChecked():
                 self.voice_translation_action.toggle()
@@ -326,29 +322,26 @@ class TrayIcon(QObject):
                 self.ocr_translation_action.toggle()
 
     def cleanup_threads(self):
-        logger.info("모든 백그라운드 스레드의 정리를 시작합니다...")
+        logger.info("Starting cleanup of all background threads...")
         
-        # 모든 워커에 종료 신호 보내기
         self.stop_voice_translation()
         self.stop_ocr_monitoring(play_sound=False)
         
-        # 메인 워커 스레드 종료
         if self.worker_thread:
             self.worker_thread.quit()
 
-        # 스레드 복사본을 만들어 순회 (리스트에서 제거되므로)
         for thread in list(self.threads):
             if thread and thread.isRunning():
-                logger.info(f"스레드 종료 대기중...")
+                logger.info(f"Waiting for thread to finish...")
                 if not thread.wait(3000):
-                    logger.warning(f"스레드가 3초 내에 정상적으로 종료되지 않았습니다. 강제 종료를 시도합니다.")
+                    logger.warning(f"Thread did not finish gracefully within 3 seconds. Attempting to terminate.")
                     thread.terminate()
 
-        logger.info("모든 스레드 정리가 완료되었습니다.")
+        logger.info("All threads have been cleaned up.")
 
     @Slot()
     def quit_application(self):
-        logger.info("애플리케이션 종료 절차 시작...")
+        logger.info("Starting application quit procedure...")
         self.tray_icon.hide()
         if self.setup_window:
             self.setup_window.close()
@@ -356,8 +349,9 @@ class TrayIcon(QObject):
         self.hotkey_manager.stop()
         self.cleanup_threads()
         
-        logger.info("모든 리소스 정리 완료. 애플리케이션을 종료합니다.")
+        logger.info("All resources cleaned up. Quitting application.")
         QTimer.singleShot(100, QApplication.instance().quit)
     
-    def tr(self, text):
-        return QCoreApplication.translate("TrayIcon", text)
+    # [수정] 컨텍스트를 받는 tr() 메서드로 변경
+    def tr(self, context, text):
+        return QCoreApplication.translate(context, text)
