@@ -1,18 +1,21 @@
-# Python 3.9 버전을 기반 이미지로 사용
-FROM python:3.9-slim
+# Dockerfile
+# 1. 베이스 이미지 선택
+FROM python:3.10-slim
 
-# 컨테이너 내 작업 디렉토리 설정
+# 2. 작업 디렉토리 설정
 WORKDIR /app
 
-# 위에서 정의한 requirements.txt를 컨테이너에 복사
-COPY ./requirements.txt /app/requirements.txt
+# 3. 의존성 설치 (코드를 복사하기 전에 설치하여 Docker 빌드 캐시를 활용)
+COPY ./requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip
+RUN pip install --no-cache-dir -r requirements.txt
 
-# 복사된 requirements.txt를 사용하여 의존성 설치
-RUN pip install --no-cache-dir --upgrade -r /app/requirements.txt
+# 4. 소스 코드 및 모델 폴더 복사
+COPY . .
 
-# 현재 디렉토리의 모든 소스 코드를 컨테이너의 /app 디렉토리로 복사
-COPY . /app
+# 5. FastAPI 서버가 사용할 포트 노출
+EXPOSE 8000
 
-# 컨테이너 실행 시 FastAPI 서버를 구동하는 명령어
-# (ariel_backend 루트에 main.py가 있다고 가정)
+# 6. 컨테이너 시작 시 실행될 기본 명령어
+# (docker-compose에서 --reload 옵션으로 덮어쓸 예정)
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

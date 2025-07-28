@@ -1,4 +1,4 @@
-# ariel_client/src/core/audio_processor.py (V12.4: 실시간 처리 방식)
+# ariel_client/src/core/audio_processor.py (V13.0: 백엔드 API 연동)
 
 import numpy as np
 import logging
@@ -7,24 +7,26 @@ import queue
 from PySide6.QtCore import QObject, Signal, Slot, QCoreApplication
 
 from ..config_manager import ConfigManager
+from ..api_client import APIClient
 
 logger = logging.getLogger(__name__)
 
 class AudioProcessor(QObject):
     """
-    AudioCapturer로부터 오디오 데이터를 받아, STT 처리에 적합한
-    일정 크기의 '청크(Chunk)'로 만들어 시그널을 방출하는 역할만 전담합니다.
-    VAD(음성 활동 감지) 로직을 제거하여 실시간성을 확보합니다.
+    AudioCapturer로부터 오디오 데이터를 받아 1초 단위 청크로 조립하고,
+    APIClient를 통해 백엔드에 STT 요청을 보낸 후,
+    결과 텍스트를 시그널로 방출하는 'STT 요청 책임자' 역할을 수행합니다.
     """
-    audio_chunk_ready = Signal(bytes) # Signal 이름을 더 명확하게 변경
+    transcription_received = Signal(str) # STT 결과를 전달할 새로운 시그널
     status_updated = Signal(str)
     finished = Signal()
     error_occurred = Signal(str)
 
-    def __init__(self, config_manager: ConfigManager, audio_queue: queue.Queue):
+    def __init__(self, config_manager: ConfigManager, audio_queue: queue.Queue, api_client: APIClient):
         super().__init__(None)
         self.config_manager = config_manager
         self.audio_queue = audio_queue
+        self.api_client = api_client # API 클라이언트 인스턴스 주입
         self._is_running = False
         
         self.SAMPLE_RATE = 16000
@@ -32,7 +34,7 @@ class AudioProcessor(QObject):
         self.CHUNK_DURATION_S = 1.0
         self.CHUNK_SIZE_BYTES = int(self.SAMPLE_RATE * 2 * self.CHUNK_DURATION_S)
         
-        logger.info("AudioProcessor 초기화 완료 (실시간 청크 방식).")
+        logger.info("AudioProcessor 초기화 완료 (백엔드 API 연동 방식).")
 
     @Slot()
     def stop(self):
@@ -42,8 +44,8 @@ class AudioProcessor(QObject):
 
     @Slot()
     def run(self):
-        """오디오 큐에서 데이터를 가져와 1초 단위의 청크로 만들어 방출하는 메인 루프"""
-        logger.info("AudioProcessor 스레드 실행 시작 (실시간 청크 방식).")
+        """오디오 큐에서 데이터를 가져와 1초 단위 청크로 만든 후 STT API를 호출하는 메인 루프"""
+        logger.info("AudioProcessor 스레드 실행 시작 (백엔드 API 연동 방식).")
         self._is_running = True
 
         audio_buffer = bytearray()
@@ -51,8 +53,6 @@ class AudioProcessor(QObject):
 
         while self._is_running:
             try:
-                # AudioCapturer가 보내주는 작은 데이터 조각을 기다립니다.
-                # get()에 timeout을 주어, _is_running 플래그 변경에 빠르게 반응하도록 합니다.
                 data_from_capturer = self.audio_queue.get(timeout=0.1)
 
                 if data_from_capturer is None:
@@ -61,32 +61,48 @@ class AudioProcessor(QObject):
                 
                 audio_buffer.extend(data_from_capturer)
 
-                # 버퍼에 처리할 만큼의 데이터(1초 분량)가 쌓였는지 확인
                 while len(audio_buffer) >= self.CHUNK_SIZE_BYTES:
-                    # 정확히 1초 분량의 청크를 잘라냅니다.
                     current_chunk = audio_buffer[:self.CHUNK_SIZE_BYTES]
-                    # 버퍼에서 처리한 부분을 제거합니다.
                     audio_buffer = audio_buffer[self.CHUNK_SIZE_BYTES:]
 
-                    logger.debug(f"1초 분량 오디오 청크 생성 ({len(current_chunk)} bytes), 방출합니다.")
-                    self.audio_chunk_ready.emit(bytes(current_chunk))
+                    self.process_chunk(bytes(current_chunk))
 
             except queue.Empty:
-                # 큐가 비어있는 것은 정상적인 상황이므로, 계속 루프를 돕니다.
                 continue
             except Exception as e:
                 logger.error(f"AudioProcessor 루프 중 예외 발생: {e}", exc_info=True)
                 self.error_occurred.emit(str(e))
         
-        # 루프 종료 시, 버퍼에 남아있는 데이터가 있다면 처리합니다.
         if len(audio_buffer) > 0:
             logger.info(f"종료 전, 남아있는 오디오 버퍼({len(audio_buffer)} bytes)를 처리합니다.")
-            self.audio_chunk_ready.emit(bytes(audio_buffer))
+            self.process_chunk(bytes(audio_buffer))
             audio_buffer.clear()
 
         self.status_updated.emit("")
         self.finished.emit()
         logger.info("AudioProcessor 루프가 정상적으로 종료되고 'finished' 시그널을 방출합니다.")
+        
+    def process_chunk(self, audio_chunk: bytes):
+        """오디오 청크를 받아 STT API를 호출하고 결과를 시그널로 방출하는 메소드"""
+        try:
+            # 설정에서 현재 STT 언어를 가져옵니다.
+            language = self.config_manager.get('stt_language', 'en')
+            logger.debug(f"1초 분량 오디오 청크({len(audio_chunk)} bytes)로 STT 요청 ({language}).")
+            
+            response = self.api_client.stt(audio_bytes=audio_chunk, language=language)
+
+            if response and "text" in response:
+                transcribed_text = response["text"]
+                if transcribed_text: # 비어있지 않은 텍스트만 전송
+                    logger.info(f"전사 결과 수신: '{transcribed_text}'")
+                    self.transcription_received.emit(transcribed_text)
+            else:
+                logger.warning("STT API로부터 유효한 텍스트 응답을 받지 못했습니다.")
+
+        except Exception as e:
+            logger.error(f"STT 청크 처리 중 예외 발생: {e}", exc_info=True)
+            self.error_occurred.emit(self.tr("STT Error"))
+
 
     def tr(self, text):
         """국제화(i18n)를 위한 편의 함수"""

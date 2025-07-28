@@ -1,4 +1,6 @@
 fastapi
-uvicorn
-stt
-numpy
+uvicorn[standard]
+python-multipart
+
+# STT Engines
+vosk

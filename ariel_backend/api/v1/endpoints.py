@@ -1,58 +1,58 @@
-# ariel_backend/api/v1/endpoints.py (이 코드로 전체 교체)
+# ariel_backend/api/v1/endpoints.py
 import logging
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form
+
+# pydantic은 FastAPI에서 자동으로 import 되므로 명시적 import는 필요 없음
 from pydantic import BaseModel
 from typing import Optional
 
-from ariel_backend.services import ocr_service
-from ariel_backend.services.stt_service import stt_service
+# OCR 서비스는 그대로 유지
+from ariel_backend.services import ocr_service 
+# 새로운 STT 매니저를 import
+from ariel_backend.services.stt_manager import stt_manager
 
 router = APIRouter()
 logger = logging.getLogger("root")
 
+# --- 응답 모델 정의 ---
+class OcrResponse(BaseModel):
+    text: str
+
 class STTResponse(BaseModel):
     text: str
-    language: Optional[str] = None
-    language_probability: Optional[float] = None
 
-@router.post("/ocr", response_model=dict)
+# --- API 엔드포인트 ---
+@router.post("/ocr", response_model=OcrResponse)
 async def ocr_image_endpoint(image_file: UploadFile = File(...)):
+    """이미지 파일에서 텍스트를 추출합니다."""
     image_bytes = await image_file.read()
     try:
         extracted_text = ocr_service.process_image_with_ocr(image_bytes)
         return {"text": extracted_text}
     except Exception as e:
+        logger.error(f"OCR Error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"An error occurred during OCR processing: {e}")
-
 
 @router.post("/stt", response_model=STTResponse)
 async def stt_audio_endpoint(
-    # [핵심 수정] 요청 폼에 model_size와 client_id 추가
     audio_file: UploadFile = File(...),
-    channels: int = Form(...),
-    language: Optional[str] = Form(None, description="Language for transcription, e.g., 'en', 'ko'. 'auto' or null for detection."),
-    model_size: str = Form("medium", description="The whisper model size to use (e.g., 'tiny', 'base', 'small', 'medium')."),
-    client_id: str = Form("unknown", description="A unique identifier for the client.")
+    language: str = Form("ko", description="Language for transcription (e.g., 'en', 'ko', 'ja').")
 ):
     """
-    [V12.2 수정] 오디오 파일과 함께 사용할 모델 크기, 클라이언트 ID를 받아
-    STT를 수행하고 결과를 반환합니다.
+    오디오 파일을 받아 지정된 언어로 음성 인식을 수행합니다.
+    - language: 'ko', 'en', 'ja' 등 STT 매니저에 의해 지원되는 언어 코드
     """
-    logger.debug(f"STT request received from client '{client_id}' with model '{model_size}' and language '{language}'.")
+    logger.debug(f"STT request received for language '{language}'.")
     audio_bytes = await audio_file.read()
-
-    lang_param = language if language and language.lower() != "auto" else None
     
-    # [핵심 수정] stt_service.transcribe 호출 시 model_size 전달
-    text, detected_lang, lang_prob = await stt_service.transcribe(
-        audio_bytes=audio_bytes,
-        channels=channels,
-        language=lang_param,
-        model_size=model_size
-    )
-
-    return {
-        "text": text,
-        "language": detected_lang,
-        "language_probability": lang_prob
-    }
+    try:
+        transcribed_text = stt_manager.process_stt_request(
+            audio_data=audio_bytes,
+            language=language
+        )
+        return {"text": transcribed_text}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"STT Error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"An error occurred during STT processing: {e}")

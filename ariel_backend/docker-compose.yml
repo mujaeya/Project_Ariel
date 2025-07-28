@@ -1,0 +1,12 @@
+# docker-compose.yml
+version: '3.8'
+
+services:
+  backend:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      # 현재 디렉토리(.)를 컨테이너의 /app 디렉토리와 실시간 동기화
+      - .:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
